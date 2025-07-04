@@ -59,6 +59,7 @@ func (s *DeviceFlowService) StartDeviceFlow(ctx context.Context) (*models.Device
 		return nil, fmt.Errorf("failed to create device auth request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("User-Agent", "memoya-server/1.0")
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {

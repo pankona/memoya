@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	secretmanager "cloud.google.com/go/secretmanager/apiv1"
 	"cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
@@ -64,7 +65,6 @@ func GetOAuthCredentials(ctx context.Context, projectID string) (*OAuthCredentia
 	clientSecret := os.Getenv("OAUTH_CLIENT_SECRET")
 
 	if clientID != "" && clientSecret != "" {
-		fmt.Printf("Using OAuth credentials from environment variables\n")
 		return &OAuthCredentials{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
@@ -72,11 +72,9 @@ func GetOAuthCredentials(ctx context.Context, projectID string) (*OAuthCredentia
 	}
 
 	// If environment variables are not set, try Secret Manager (for production)
-	fmt.Printf("Trying Secret Manager for projectID: %s\n", projectID)
 	sm, err := NewSecretManager(ctx, projectID)
 	if err != nil {
 		// Fall back to default values if Secret Manager is not available
-		fmt.Printf("Failed to create Secret Manager client: %v\n", err)
 		return &OAuthCredentials{
 			ClientID:     "memoya-client-id",
 			ClientSecret: "memoya-client-secret",
@@ -88,20 +86,18 @@ func GetOAuthCredentials(ctx context.Context, projectID string) (*OAuthCredentia
 	if clientID == "" {
 		clientID, err = sm.GetSecret(ctx, "oauth-client-id")
 		if err != nil {
-			fmt.Printf("Failed to get oauth-client-id from Secret Manager: %v\n", err)
 			clientID = "memoya-client-id" // Fallback
 		} else {
-			fmt.Printf("Successfully retrieved OAuth client ID from Secret Manager\n")
+			clientID = strings.TrimSpace(clientID) // Remove whitespace and newlines
 		}
 	}
 
 	if clientSecret == "" {
 		clientSecret, err = sm.GetSecret(ctx, "oauth-client-secret")
 		if err != nil {
-			fmt.Printf("Failed to get oauth-client-secret from Secret Manager: %v\n", err)
 			clientSecret = "memoya-client-secret" // Fallback
 		} else {
-			fmt.Printf("Successfully retrieved OAuth client secret from Secret Manager\n")
+			clientSecret = strings.TrimSpace(clientSecret) // Remove whitespace and newlines
 		}
 	}
 

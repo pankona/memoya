@@ -3,12 +3,11 @@ package main
 import (
 	"context"
 	"log"
+	"os"
 
 	"github.com/joho/godotenv"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/pankona/memoya/config"
-	"github.com/pankona/memoya/internal/handlers"
-	"github.com/pankona/memoya/internal/storage"
+	"github.com/pankona/memoya/internal/client"
 )
 
 func main() {
@@ -17,39 +16,88 @@ func main() {
 	// Load .env file if exists
 	_ = godotenv.Load()
 
-	// Load configuration
-	cfg := config.Load()
-
-	// Initialize storage
-	var store storage.Storage
-	if cfg.FirebaseProjectID != "" {
-		firestoreStorage, err := storage.NewFirestoreStorage(ctx, cfg.FirebaseProjectID)
-		if err != nil {
-			log.Fatalf("Failed to initialize Firestore: %v", err)
-		}
-		defer firestoreStorage.Close()
-		store = firestoreStorage
+	// Get Cloud Run URL from environment
+	cloudRunURL := os.Getenv("MEMOYA_CLOUD_RUN_URL")
+	if cloudRunURL == "" {
+		// Default to localhost for development
+		cloudRunURL = "http://localhost:8080"
+		log.Printf("Using default Cloud Run URL: %s", cloudRunURL)
 	} else {
-		log.Println("Warning: No FIREBASE_PROJECT_ID provided, using mock storage")
-		// For now, we'll still use handlers without storage
-		// TODO: Implement in-memory storage for development
+		log.Printf("Using Cloud Run URL: %s", cloudRunURL)
 	}
+
+	// Initialize HTTP client
+	httpClient := client.NewHTTPClient(cloudRunURL)
+	
+	// Set auth token if available
+	if authToken := os.Getenv("MEMOYA_AUTH_TOKEN"); authToken != "" {
+		httpClient.SetAuthToken(authToken)
+		log.Println("Auth token configured")
+	}
+
+	// Test connectivity
+	if err := httpClient.Ping(ctx); err != nil {
+		log.Printf("Warning: Failed to ping server at %s: %v", cloudRunURL, err)
+		log.Println("Continuing anyway - server might not be running yet")
+	} else {
+		log.Println("Successfully connected to Cloud Run server")
+	}
+
+	// Create MCP bridge
+	bridge := client.NewMCPBridge(httpClient)
 
 	// Create MCP server
 	server := mcp.NewServer("memoya", "0.1.0", nil)
 
-	// Create handlers
-	todoHandler := handlers.NewTodoHandlerWithStorage(store)
-	memoHandler := handlers.NewMemoHandlerWithStorage(store)
-	searchHandler := handlers.NewSearchHandler(store)
-	tagHandler := handlers.NewTagHandler(store)
+	// Register memo tools (HTTP-backed)
+	server.AddTools(
+		mcp.NewServerTool(
+			"memo_create",
+			"Create a new memo",
+			bridge.MemoCreate,
+			mcp.Input(
+				mcp.Property("title", mcp.Description("Memo title"), mcp.Required(true)),
+				mcp.Property("description", mcp.Description("Memo description")),
+				mcp.Property("tags", mcp.Description("Tags for the memo")),
+				mcp.Property("linked_todos", mcp.Description("IDs of linked todos")),
+			),
+		),
+		mcp.NewServerTool(
+			"memo_list",
+			"List memos with optional filters",
+			bridge.MemoList,
+			mcp.Input(
+				mcp.Property("tags", mcp.Description("Filter by tags")),
+			),
+		),
+		mcp.NewServerTool(
+			"memo_update",
+			"Update an existing memo",
+			bridge.MemoUpdate,
+			mcp.Input(
+				mcp.Property("id", mcp.Description("Memo ID to update"), mcp.Required(true)),
+				mcp.Property("title", mcp.Description("New title")),
+				mcp.Property("description", mcp.Description("New description")),
+				mcp.Property("tags", mcp.Description("New tags")),
+				mcp.Property("linked_todos", mcp.Description("New linked todo IDs")),
+			),
+		),
+		mcp.NewServerTool(
+			"memo_delete",
+			"Delete a memo",
+			bridge.MemoDelete,
+			mcp.Input(
+				mcp.Property("id", mcp.Description("Memo ID to delete"), mcp.Required(true)),
+			),
+		),
+	)
 
-	// Register todo tools
+	// Register todo tools (HTTP-backed)
 	server.AddTools(
 		mcp.NewServerTool(
 			"todo_create",
 			"Create a new todo item",
-			todoHandler.Create,
+			bridge.TodoCreate,
 			mcp.Input(
 				mcp.Property("title", mcp.Description("Todo title"), mcp.Required(true)),
 				mcp.Property("description", mcp.Description("Todo description")),
@@ -62,7 +110,7 @@ func main() {
 		mcp.NewServerTool(
 			"todo_list",
 			"List todo items with optional filters",
-			todoHandler.List,
+			bridge.TodoList,
 			mcp.Input(
 				mcp.Property("status", mcp.Description("Filter by status")),
 				mcp.Property("tags", mcp.Description("Filter by tags")),
@@ -72,7 +120,7 @@ func main() {
 		mcp.NewServerTool(
 			"todo_update",
 			"Update an existing todo item",
-			todoHandler.Update,
+			bridge.TodoUpdate,
 			mcp.Input(
 				mcp.Property("id", mcp.Description("Todo ID to update"), mcp.Required(true)),
 				mcp.Property("title", mcp.Description("New title")),
@@ -85,62 +133,19 @@ func main() {
 		mcp.NewServerTool(
 			"todo_delete",
 			"Delete a todo item",
-			todoHandler.Delete,
+			bridge.TodoDelete,
 			mcp.Input(
 				mcp.Property("id", mcp.Description("Todo ID to delete"), mcp.Required(true)),
 			),
 		),
 	)
 
-	// Register memo tools
-	server.AddTools(
-		mcp.NewServerTool(
-			"memo_create",
-			"Create a new memo",
-			memoHandler.Create,
-			mcp.Input(
-				mcp.Property("title", mcp.Description("Memo title"), mcp.Required(true)),
-				mcp.Property("description", mcp.Description("Memo description")),
-				mcp.Property("tags", mcp.Description("Tags for the memo")),
-				mcp.Property("linked_todos", mcp.Description("IDs of linked todos")),
-			),
-		),
-		mcp.NewServerTool(
-			"memo_list",
-			"List memos with optional filters",
-			memoHandler.List,
-			mcp.Input(
-				mcp.Property("tags", mcp.Description("Filter by tags")),
-			),
-		),
-		mcp.NewServerTool(
-			"memo_update",
-			"Update an existing memo",
-			memoHandler.Update,
-			mcp.Input(
-				mcp.Property("id", mcp.Description("Memo ID to update"), mcp.Required(true)),
-				mcp.Property("title", mcp.Description("New title")),
-				mcp.Property("description", mcp.Description("New description")),
-				mcp.Property("tags", mcp.Description("New tags")),
-				mcp.Property("linked_todos", mcp.Description("New linked todo IDs")),
-			),
-		),
-		mcp.NewServerTool(
-			"memo_delete",
-			"Delete a memo",
-			memoHandler.Delete,
-			mcp.Input(
-				mcp.Property("id", mcp.Description("Memo ID to delete"), mcp.Required(true)),
-			),
-		),
-	)
-
-	// Register search tool
+	// Register search tool (HTTP-backed)
 	server.AddTools(
 		mcp.NewServerTool(
 			"search",
 			"Search todos and memos by keyword or tags",
-			searchHandler.Search,
+			bridge.Search,
 			mcp.Input(
 				mcp.Property("query", mcp.Description("Search query")),
 				mcp.Property("tags", mcp.Description("Filter by tags")),
@@ -149,15 +154,17 @@ func main() {
 		),
 	)
 
-	// Register tag tools
+	// Register tag tools (HTTP-backed)
 	server.AddTools(
 		mcp.NewServerTool(
 			"tag_list",
 			"List all unique tags from todos and memos",
-			tagHandler.List,
+			bridge.TagList,
 			mcp.Input(),
 		),
 	)
+
+	log.Println("Starting MCP client with HTTP transport to Cloud Run...")
 
 	// Run server with stdio transport
 	transport := mcp.NewStdioTransport()

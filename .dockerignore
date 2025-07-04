@@ -1,0 +1,43 @@
+# Binaries
+memoya
+memoya-server
+
+# Development files
+.git
+.gitignore
+.env
+.env.local
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test files
+*_test.go
+test/
+coverage.out
+
+# Documentation
+README.md
+docs/
+
+# CI/CD
+.github/
+
+# Local development
+docker-compose.yml
+docker-compose.override.yml
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Generated files that will be regenerated in container
+internal/generated/

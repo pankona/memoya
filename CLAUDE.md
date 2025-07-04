@@ -13,28 +13,45 @@ Claude Desktopと統合して、AIとの会話の中でメモやタスクを効�
 
 ## アーキテクチャ
 
-### 全体構成
+### 2つのデプロイメント方式
+
+#### 1. ローカル実行（従来方式）
 ```
-Claude Desktop ↔ MCP Protocol ↔ memoya (Go) ↔ Firestore
+Claude Desktop ↔ MCP Client (Local) ↔ Firestore
+```
+
+#### 2. Cloud Run対応（新方式）
+```
+Claude Desktop ↔ MCP Client (Local) ↔ HTTP ↔ Cloud Run Server ↔ Firestore
 ```
 
 ### ディレクトリ構造
 ```
 memoya/
-├── cmd/memoya/           # メインエントリーポイント
+├── api/                    # OpenAPI仕様
+│   ├── openapi.yaml       # API仕様書
+│   ├── server-config.yaml # サーバー生成設定
+│   └── client-config.yaml # クライアント生成設定
+├── cmd/
+│   ├── memoya/            # MCP Client
+│   └── memoya-server/     # Cloud Run Server
 ├── internal/
-│   ├── handlers/         # MCPハンドラー実装
-│   │   ├── memo.go      # メモ操作
-│   │   ├── todo.go      # TODO操作  
-│   │   ├── search.go    # 検索機能
-│   │   ├── tag.go       # タグ管理
-│   │   ├── *_test.go    # 単体テスト
+│   ├── client/            # HTTP client & MCP bridge
+│   ├── generated/         # OpenAPI生成コード
+│   ├── handlers/          # MCPハンドラー実装
+│   │   ├── memo.go        # メモ操作
+│   │   ├── todo.go        # TODO操作  
+│   │   ├── search.go      # 検索機能
+│   │   ├── tag.go         # タグ管理
+│   │   ├── *_test.go      # 単体テスト
 │   │   └── mock_storage.go # テスト用モック
-│   ├── models/          # データモデル定義
-│   ├── storage/         # ストレージインターフェース
-│   └── config/          # 設定管理
-├── Makefile             # ビルド・テストコマンド
-└── go.mod               # Go依存関係
+│   ├── server/            # HTTP server実装
+│   ├── models/            # データモデル定義
+│   ├── storage/           # ストレージインターフェース
+│   └── config/            # 設定管理
+├── Dockerfile             # Cloud Run用
+├── Makefile              # ビルド・テストコマンド
+└── go.mod                # Go依存関係
 ```
 
 ### データモデル
@@ -279,32 +296,191 @@ go test -v -race ./...
 go vet ./...
 ```
 
+## Cloud Run対応アーキテクチャ
+
+### OpenAPI仕様管理
+
+#### 仕様書ベース開発
+- **api/openapi.yaml**: 完全なAPI仕様定義
+- **自動コード生成**: oapi-codegenによるserver/client生成
+- **型安全**: Go構造体自動生成
+- **ドキュメント化**: SwaggerUI対応
+
+#### コード生成設定
+```yaml
+# api/server-config.yaml
+package: generated
+output: internal/generated/server.go
+generate:
+  chi-server: true
+  models: true
+  embedded-spec: true
+```
+
+### HTTP Server実装
+
+#### Chi Router + 生成コード統合
+```go
+type Server struct {
+    memoHandler   *handlers.MemoHandler
+    todoHandler   *handlers.TodoHandler
+    searchHandler *handlers.SearchHandler
+    tagHandler    *handlers.TagHandler
+}
+
+func (s *Server) CreateMemo(w http.ResponseWriter, r *http.Request) {
+    var req generated.MemoCreateRequest
+    json.NewDecoder(r.Body).Decode(&req)
+    
+    // 既存MCPハンドラーを再利用
+    args := handlers.MemoCreateArgs{...}
+    params := &mcp.CallToolParamsFor[handlers.MemoCreateArgs]{Arguments: args}
+    result, err := s.memoHandler.Create(r.Context(), nil, params)
+    
+    // JSONレスポンス返却
+    w.Write([]byte(result.Content[0].(*mcp.TextContent).Text))
+}
+```
+
+#### 既存ハンドラーとの統合
+- MCPハンドラーをHTTP層でラップ
+- ビジネスロジック再利用
+- 統一されたエラーハンドリング
+- CORS・認証対応
+
+### MCP Client HTTP Transport
+
+#### HTTPブリッジ実装
+```go
+type MCPBridge struct {
+    httpClient *HTTPClient
+}
+
+func (b *MCPBridge) MemoCreate(ctx context.Context, ss *mcp.ServerSession, 
+    params *mcp.CallToolParamsFor[handlers.MemoCreateArgs]) (*mcp.CallToolResultFor[handlers.MemoCreateResult], error) {
+    
+    // Cloud Run APIを呼び出し
+    respData, err := b.httpClient.CallTool(ctx, "memo_create", params.Arguments)
+    
+    // MCPレスポンス形式に変換
+    return &mcp.CallToolResultFor[handlers.MemoCreateResult]{
+        Content: []mcp.Content{&mcp.TextContent{Text: string(respData)}},
+    }, nil
+}
+```
+
+#### 接続性・エラーハンドリング
+- サーバーping機能
+- 構造化エラーレスポンス
+- タイムアウト・リトライ
+- 認証トークン管理
+
+### デプロイメント
+
+#### Cloud Run Server
+```dockerfile
+# マルチステージビルド
+FROM golang:1.21-alpine AS builder
+RUN make generate  # OpenAPI コード生成
+RUN go build -o memoya-server ./cmd/memoya-server
+
+FROM alpine:latest
+COPY --from=builder /app/memoya-server .
+EXPOSE 8080
+CMD ["./memoya-server"]
+```
+
+#### 環境変数管理
+```bash
+# Cloud Run Server
+PROJECT_ID=your-firebase-project-id
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
+
+# MCP Client
+MEMOYA_CLOUD_RUN_URL=https://memoya-server-xxx.a.run.app
+MEMOYA_AUTH_TOKEN=your-jwt-token  # オプション
+```
+
+### 開発ワークフロー
+
+#### コード生成・ビルド
+```bash
+# 1. 依存関係取得
+go mod tidy
+
+# 2. OpenAPIからコード生成
+make generate
+
+# 3. テスト実行
+make test
+
+# 4. ローカル開発
+make run-server  # 別ターミナル
+make run-client  # MCPクライアント
+
+# 5. Cloud Runデプロイ
+make docker-build
+gcloud run deploy memoya-server --image memoya-server
+```
+
+#### API仕様変更フロー
+1. `api/openapi.yaml`を更新
+2. `make generate`でコード再生成
+3. サーバー実装を調整
+4. テスト実行・動作確認
+5. デプロイ
+
+### Cloud Run対応の利点
+
+#### スケーラビリティ
+- 自動スケーリング（0〜N台）
+- コンカレンシー制御
+- リージョン分散対応
+
+#### 可用性・保守性
+- 24/7稼働保証
+- ゼロダウンタイムデプロイ
+- サーバー管理不要
+
+#### セキュリティ
+- Google Cloudセキュリティ
+- HTTPS強制
+- IAM統合認証
+
+#### コスト効率
+- 使用量ベース課金
+- アイドル時0コスト
+- 従量制スケーリング
+
 ### 今後の拡張予定
 
-#### 認証機能
-- Google OAuth 2.0 Device Flow対応
-- マルチユーザー対応
-- JWT トークン管理
+#### 近期実装
+- **Web UI**: SPA + REST API
+- **認証強化**: Google OAuth 2.0
+- **CI/CD**: GitHub Actions
 
-#### Web UI
-- Cloud Run対応
-- HTTP transport 対応  
-- REST API エンドポイント
+#### 中期実装
+- **マルチユーザー**: ユーザー分離
+- **リアルタイム**: WebSocket
+- **分析機能**: 使用統計
 
-#### 機能拡張
-- タグ正規化システム
-- メモ・TODO間のリンク機能強化
-- エクスポート機能（JSON、Markdown）
-- 全文検索の高度化
+#### 長期実装
+- **プラグイン**: 拡張アーキテクチャ
+- **AI統合**: 自動提案・分類
+- **エンタープライズ**: SSO・監査ログ
 
 ### 参考資料
 
 #### 外部依存関係
 - [MCP Go SDK](https://github.com/modelcontextprotocol/go-sdk) - MCPプロトコル実装
 - [Firebase Admin SDK](https://firebase.google.com/docs/admin/setup) - Firestore操作
+- [oapi-codegen](https://github.com/deepmap/oapi-codegen) - OpenAPIコード生成
+- [Chi Router](https://github.com/go-chi/chi) - HTTP router
 - [Google UUID](https://github.com/google/uuid) - 一意ID生成
 
 #### 関連ドキュメント
 - [Model Context Protocol Specification](https://spec.modelcontextprotocol.io/)
 - [Claude Desktop MCP Guide](https://claude.ai/docs/mcp)
+- [OpenAPI 3.0 Specification](https://swagger.io/specification/)
+- [Cloud Run Documentation](https://cloud.google.com/run/docs)
 - [Firestore Data Model](https://firebase.google.com/docs/firestore/data-model)

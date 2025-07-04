@@ -65,9 +65,22 @@ func (h *MemoHandler) Create(ctx context.Context, ss *mcp.ServerSession, params 
 		return nil, fmt.Errorf("failed to create memo: %w", err)
 	}
 
+	// Create result
+	result := MemoResult{
+		Success: true,
+		Memo:    memo,
+		Message: fmt.Sprintf("Memo '%s' created successfully with ID: %s", memo.Title, memo.ID),
+	}
+
+	// Convert to JSON
+	jsonBytes, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal result: %w", err)
+	}
+
 	return &mcp.CallToolResultFor[MemoResult]{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: fmt.Sprintf("Memo '%s' created successfully with ID: %s", memo.Title, memo.ID)},
+			&mcp.TextContent{Text: string(jsonBytes)},
 		},
 	}, nil
 }
@@ -164,9 +177,22 @@ func (h *MemoHandler) Update(ctx context.Context, ss *mcp.ServerSession, params 
 		return nil, fmt.Errorf("failed to update memo: %w", err)
 	}
 
+	// Create result
+	result := MemoResult{
+		Success: true,
+		Memo:    memo,
+		Message: fmt.Sprintf("Memo '%s' updated successfully", memo.Title),
+	}
+
+	// Convert to JSON
+	jsonBytes, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal result: %w", err)
+	}
+
 	return &mcp.CallToolResultFor[MemoResult]{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: fmt.Sprintf("Memo '%s' updated successfully", memo.Title)},
+			&mcp.TextContent{Text: string(jsonBytes)},
 		},
 	}, nil
 }

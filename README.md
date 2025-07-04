@@ -2,6 +2,20 @@
 
 memoya は Todo管理とメモ機能を提供するMCP (Model Context Protocol) サーバーです。AIとの対話を通じてタスクやアイデアを管理できます。
 
+## アーキテクチャ
+
+memoyaは2つのデプロイメント方式をサポートしています：
+
+### 1. ローカル実行（従来方式）
+```
+Claude Desktop ↔ MCP Client (Local) ↔ Firestore
+```
+
+### 2. Cloud Run対応（新方式）
+```
+Claude Desktop ↔ MCP Client (Local) ↔ HTTP ↔ Cloud Run Server ↔ Firestore
+```
+
 ## 機能
 
 ### Todo管理
@@ -23,13 +37,20 @@ memoya は Todo管理とメモ機能を提供するMCP (Model Context Protocol) 
 - **タグフィルタ**: 特定のタグでの絞り込み
 - **タイプフィルタ**: Todo/メモ/全体での検索
 
+### タグ管理
+- **一覧表示**: 全ての一意なタグを表示
+- **自動集計**: Todo・メモ横断でのタグ分析
+
 ## セットアップ
 
 ### 必要な環境
 - Go 1.22以上
 - Firebase プロジェクト（Firestore使用）
+- Cloud Run（クラウド実行の場合）
 
-### インストール
+### ローカル実行の場合
+
+#### インストール
 
 ```bash
 # ソースからインストール
@@ -41,14 +62,14 @@ make install
 go install github.com/pankona/memoya/cmd/memoya@latest
 ```
 
-### Firebase設定
+#### Firebase設定
 
 1. [Firebase Console](https://console.firebase.google.com/)でプロジェクトを作成
 2. Firestore Databaseを有効化（テストモードでOK）
 3. プロジェクト設定 → サービスアカウント → 新しい秘密鍵の生成
 4. ダウンロードしたJSONファイルを安全な場所に保存
 
-### 環境変数の設定
+#### 環境変数の設定
 
 ```bash
 # .envファイルを作成（推奨）
@@ -56,22 +77,9 @@ cat > .env << EOF
 FIREBASE_PROJECT_ID=your-project-id
 GOOGLE_APPLICATION_CREDENTIALS=./path-to-service-account-key.json
 EOF
-
-# または環境変数として設定
-export FIREBASE_PROJECT_ID=your-firebase-project-id
-export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json
 ```
 
-## 使用方法
-
-### Claude Desktopでの利用
-
-1. Claude Desktopの設定ファイルを開く
-   - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
-   - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
-   - Linux: `~/.config/Claude/claude_desktop_config.json`
-
-2. 以下の設定を追加:
+#### Claude Desktop設定（ローカル実行）
 
 ```json
 {
@@ -87,18 +95,119 @@ export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json
 }
 ```
 
-3. Claude Desktopを再起動
+### Cloud Run実行の場合
 
-### コマンドラインでの起動
+#### 1. Cloud Run Serverのデプロイ
+
 ```bash
-# 環境変数を設定して起動
-memoya
+# プロジェクト準備
+git clone https://github.com/pankona/memoya.git
+cd memoya
 
-# または .env ファイルがある場合
-memoya  # .envファイルは自動的に読み込まれます
+# 依存関係取得
+go mod tidy
+
+# OpenAPIからコード生成
+make generate
+
+# Docker imageビルド
+make docker-build
+
+# Cloud Runにデプロイ
+gcloud run deploy memoya-server \
+  --image memoya-server \
+  --platform managed \
+  --region us-central1 \
+  --set-env-vars PROJECT_ID=your-firebase-project-id
 ```
 
-### 利用可能なツール
+#### 2. MCP Clientの設定
+
+```bash
+# MCP clientをビルド・インストール
+make build
+make install
+```
+
+#### 3. Claude Desktop設定（Cloud Run）
+
+```json
+{
+  "mcpServers": {
+    "memoya": {
+      "command": "memoya",
+      "env": {
+        "MEMOYA_CLOUD_RUN_URL": "https://memoya-server-xxxxx-uc.a.run.app",
+        "MEMOYA_AUTH_TOKEN": "your-jwt-token"
+      }
+    }
+  }
+}
+```
+
+## 開発
+
+### 開発用コマンド
+
+```bash
+# 依存関係取得
+go mod tidy
+
+# OpenAPIからコード生成
+make generate
+
+# コードフォーマット
+make fmt
+
+# 静的解析
+make lint
+
+# テスト実行
+make test
+
+# ローカルサーバー起動（開発用）
+make run-server
+
+# MCPクライアント起動（開発用）
+make run-client
+```
+
+### プロジェクト構造
+
+```
+memoya/
+├── api/                    # OpenAPI仕様
+│   ├── openapi.yaml       # API仕様書
+│   ├── server-config.yaml # サーバー生成設定
+│   └── client-config.yaml # クライアント生成設定
+├── cmd/
+│   ├── memoya/            # MCP Client
+│   └── memoya-server/     # Cloud Run Server
+├── internal/
+│   ├── client/            # HTTP client & MCP bridge
+│   ├── generated/         # OpenAPI生成コード
+│   ├── handlers/          # ビジネスロジック
+│   ├── server/            # HTTP server実装
+│   ├── storage/           # Firestore抽象化
+│   └── models/            # データモデル
+├── Dockerfile             # Cloud Run用
+├── Makefile              # ビルドコマンド
+└── CLAUDE.md             # 開発者向け詳細仕様
+```
+
+### API仕様
+
+REST APIの詳細は[OpenAPI仕様書](./api/openapi.yaml)を参照してください。
+
+主要エンドポイント：
+- `POST /mcp/memo_create` - メモ作成
+- `POST /mcp/memo_list` - メモ一覧
+- `POST /mcp/todo_create` - Todo作成  
+- `POST /mcp/todo_list` - Todo一覧
+- `POST /mcp/search` - 統合検索
+- `POST /mcp/tag_list` - タグ一覧
+
+## 利用可能なツール
 
 #### Todo操作
 - `todo_create`: 新しいTodoを作成
@@ -112,8 +221,9 @@ memoya  # .envファイルは自動的に読み込まれます
 - `memo_update`: 既存のメモを更新
 - `memo_delete`: メモを削除
 
-#### 検索
+#### 検索・分析
 - `search`: Todo/メモの横断検索
+- `tag_list`: 全ての一意なタグを表示
 
 ### 使用例
 
@@ -134,40 +244,51 @@ Claude: workタグが付いているTodoは以下の3件です：
 1. プロジェクトの企画書を作成 (優先度: high, ステータス: todo)
 2. チームミーティング準備 (優先度: normal, ステータス: in_progress)
 3. 月次レポート提出 (優先度: high, ステータス: done)
-```
 
-## 開発
+あなた: 「使用されているすべてのタグを表示して」
 
-### コードフォーマット
-```bash
-make fmt
-```
-
-### 静的解析
-```bash
-make lint
-```
-
-### テスト
-```bash
-make test
+Claude: 現在使用されているタグは以下の5つです：
+- work (使用頻度: 3)
+- personal (使用頻度: 2)  
+- urgent (使用頻度: 1)
+- notes (使用頻度: 2)
+- ideas (使用頻度: 1)
 ```
 
 ## トラブルシューティング
 
-### Firebaseに接続できない
+### ローカル実行の問題
+
+#### Firebaseに接続できない
 - 環境変数が正しく設定されているか確認
 - サービスアカウントキーのパスが絶対パスか確認
 - Firebaseプロジェクトでアクセス権限があるか確認
 
-### .envファイルが読み込まれない
+#### .envファイルが読み込まれない
 - memoyaを実行するディレクトリに.envファイルがあるか確認
 - ファイルの権限を確認 (`chmod 600 .env`)
 
-### Claude Desktopで使えない
+### Cloud Run実行の問題
+
+#### MCP ClientがCloud Runに接続できない
+- `MEMOYA_CLOUD_RUN_URL`が正しく設定されているか確認
+- Cloud Runサービスが起動しているか確認
+- ファイアウォール設定を確認
+
+#### 認証エラー
+- `MEMOYA_AUTH_TOKEN`が有効か確認
+- Cloud Run側の認証設定を確認
+
+### Claude Desktop共通の問題
+
+#### MCPツールが認識されない
 - claude_desktop_config.jsonの構文エラーがないか確認
 - memoyaコマンドがPATHに含まれているか確認 (`which memoya`)
 - Claude Desktopを完全に再起動（タスクトレイからも終了）
+
+#### 性能が遅い
+- Cloud Run: リージョン設定とコールドスタート対策
+- ローカル: Firestore接続の最適化
 
 ## ライセンス
 
@@ -177,13 +298,23 @@ MIT License
 
 プルリクエストや Issue の作成を歓迎します。
 
+詳細な開発ガイドラインは[CLAUDE.md](./CLAUDE.md)を参照してください。
+
 ## 今後の改善予定
 
-- Cloud Functions化によるセットアップの簡略化
-- インメモリストレージの実装（開発用）
+### 近期
+- Web UI実装（Cloud Run + SPA）
+- 認証機能の強化（Google OAuth 2.0）
+- CI/CD パイプライン
+
+### 中期  
+- 多言語対応
+- リアルタイム同期
 - より詳細な検索機能
 - バルク操作のサポート
-- テストケースの追加
-- パフォーマンスの最適化
 
-詳細は[TODO.md](./TODO.md)を参照してください。
+### 長期
+- マルチユーザー対応
+- プラグインシステム
+- AIによる自動タグ付け
+- 高度な分析・レポート機能

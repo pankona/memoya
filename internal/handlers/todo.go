@@ -75,23 +75,26 @@ func (h *TodoHandler) Create(ctx context.Context, ss *mcp.ServerSession, params 
 	if h.storage != nil {
 		err := h.storage.CreateTodo(ctx, todo)
 		if err != nil {
-			return &mcp.CallToolResultFor[TodoResult]{
-				Content: []mcp.Content{
-					&mcp.TextContent{Text: fmt.Sprintf("Failed to create todo: %v", err)},
-				},
-				IsError: true,
-			}, nil
+			return nil, fmt.Errorf("failed to create todo: %w", err)
 		}
-		return &mcp.CallToolResultFor[TodoResult]{
-			Content: []mcp.Content{
-				&mcp.TextContent{Text: fmt.Sprintf("Todo '%s' created successfully with ID: %s", todo.Title, todo.ID)},
-			},
-		}, nil
+	}
+
+	// Create result
+	result := TodoResult{
+		Success: true,
+		Todo:    todo,
+		Message: fmt.Sprintf("Todo '%s' created successfully with ID: %s", todo.Title, todo.ID),
+	}
+
+	// Convert to JSON
+	jsonBytes, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal result: %w", err)
 	}
 
 	return &mcp.CallToolResultFor[TodoResult]{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: "Todo created successfully (using mock storage)"},
+			&mcp.TextContent{Text: string(jsonBytes)},
 		},
 	}, nil
 }

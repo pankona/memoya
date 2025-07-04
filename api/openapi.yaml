@@ -1,0 +1,788 @@
+openapi: 3.0.3
+info:
+  title: Memoya MCP API
+  description: |
+    Memoya MCP server API for memo and todo management.
+    This API provides endpoints that correspond to MCP tools,
+    allowing MCP clients to interact with the Memoya backend via HTTP.
+  version: 1.0.0
+  contact:
+    name: Memoya API Support
+  license:
+    name: MIT
+
+servers:
+  - url: https://memoya-server-xxxxx-uc.a.run.app
+    description: Cloud Run production server
+  - url: http://localhost:8080
+    description: Local development server
+
+paths:
+  /health:
+    get:
+      summary: Health check endpoint
+      operationId: healthCheck
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+                  timestamp:
+                    type: string
+                    format: date-time
+                required:
+                  - status
+                  - timestamp
+
+  /mcp/memo_create:
+    post:
+      summary: Create a new memo
+      operationId: createMemo
+      tags:
+        - Memo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemoCreateRequest'
+      responses:
+        '200':
+          description: Memo created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemoCreateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /mcp/memo_list:
+    post:
+      summary: List memos with optional filters
+      operationId: listMemos
+      tags:
+        - Memo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemoListRequest'
+      responses:
+        '200':
+          description: Memos retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemoListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /mcp/memo_update:
+    post:
+      summary: Update an existing memo
+      operationId: updateMemo
+      tags:
+        - Memo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemoUpdateRequest'
+      responses:
+        '200':
+          description: Memo updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemoUpdateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /mcp/memo_delete:
+    post:
+      summary: Delete a memo
+      operationId: deleteMemo
+      tags:
+        - Memo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemoDeleteRequest'
+      responses:
+        '200':
+          description: Memo deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemoDeleteResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /mcp/todo_create:
+    post:
+      summary: Create a new todo
+      operationId: createTodo
+      tags:
+        - Todo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TodoCreateRequest'
+      responses:
+        '200':
+          description: Todo created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodoCreateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /mcp/todo_list:
+    post:
+      summary: List todos with optional filters
+      operationId: listTodos
+      tags:
+        - Todo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TodoListRequest'
+      responses:
+        '200':
+          description: Todos retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodoListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /mcp/todo_update:
+    post:
+      summary: Update an existing todo
+      operationId: updateTodo
+      tags:
+        - Todo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TodoUpdateRequest'
+      responses:
+        '200':
+          description: Todo updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodoUpdateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /mcp/todo_delete:
+    post:
+      summary: Delete a todo
+      operationId: deleteTodo
+      tags:
+        - Todo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TodoDeleteRequest'
+      responses:
+        '200':
+          description: Todo deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodoDeleteResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /mcp/search:
+    post:
+      summary: Search across memos and todos
+      operationId: search
+      tags:
+        - Search
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequest'
+      responses:
+        '200':
+          description: Search completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /mcp/tag_list:
+    post:
+      summary: List all unique tags
+      operationId: listTags
+      tags:
+        - Tag
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TagListRequest'
+      responses:
+        '200':
+          description: Tags retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TagListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  schemas:
+    # Memo Schemas
+    MemoCreateRequest:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+          description: Memo title
+          example: "Meeting Notes"
+        description:
+          type: string
+          description: Memo content
+          example: "Discussion about project roadmap"
+        tags:
+          type: array
+          items:
+            type: string
+          description: Tags for categorization
+          example: ["work", "meeting"]
+        linked_todos:
+          type: array
+          items:
+            type: string
+          description: IDs of linked todos
+          example: ["todo-123", "todo-456"]
+
+    MemoCreateResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/Memo'
+        message:
+          type: string
+          example: "memo created successfully"
+
+    MemoListRequest:
+      type: object
+      properties:
+        tags:
+          type: array
+          items:
+            type: string
+          description: Filter by tags
+          example: ["work", "urgent"]
+
+    MemoListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        memos:
+          type: array
+          items:
+            $ref: '#/components/schemas/Memo'
+        message:
+          type: string
+          example: "Found 5 memos"
+
+    MemoUpdateRequest:
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: string
+          description: Memo ID to update
+          example: "memo-123"
+        title:
+          type: string
+          description: New title
+          example: "Updated Meeting Notes"
+        description:
+          type: string
+          description: New description
+          example: "Updated discussion notes"
+        tags:
+          type: array
+          items:
+            type: string
+          description: New tags
+          example: ["work", "updated"]
+        linked_todos:
+          type: array
+          items:
+            type: string
+          description: New linked todo IDs
+          example: ["todo-789"]
+
+    MemoUpdateResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/Memo'
+        message:
+          type: string
+          example: "memo updated successfully"
+
+    MemoDeleteRequest:
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: string
+          description: Memo ID to delete
+          example: "memo-123"
+
+    MemoDeleteResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "memo deleted successfully"
+
+    Memo:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "memo-123"
+        title:
+          type: string
+          example: "Meeting Notes"
+        description:
+          type: string
+          example: "Discussion about project roadmap"
+        tags:
+          type: array
+          items:
+            type: string
+          example: ["work", "meeting"]
+        linked_todos:
+          type: array
+          items:
+            type: string
+          example: ["todo-123"]
+        created_at:
+          type: string
+          format: date-time
+          example: "2024-01-01T10:00:00Z"
+        last_modified:
+          type: string
+          format: date-time
+          example: "2024-01-01T10:00:00Z"
+        closed_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+
+    # Todo Schemas
+    TodoCreateRequest:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+          description: Todo title
+          example: "Implement feature X"
+        description:
+          type: string
+          description: Todo description
+          example: "Add new functionality to the app"
+        status:
+          type: string
+          enum: ["backlog", "todo", "in_progress", "done"]
+          description: Todo status
+          example: "todo"
+        priority:
+          type: string
+          enum: ["high", "normal"]
+          description: Todo priority
+          example: "high"
+        tags:
+          type: array
+          items:
+            type: string
+          description: Tags for categorization
+          example: ["development", "urgent"]
+        parent_id:
+          type: string
+          description: Parent todo ID for hierarchical structure
+          example: "parent-todo-123"
+
+    TodoCreateResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/Todo'
+        message:
+          type: string
+          example: "todo created successfully"
+
+    TodoListRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: ["backlog", "todo", "in_progress", "done"]
+          description: Filter by status
+          example: "todo"
+        priority:
+          type: string
+          enum: ["high", "normal"]
+          description: Filter by priority
+          example: "high"
+        tags:
+          type: array
+          items:
+            type: string
+          description: Filter by tags
+          example: ["work", "urgent"]
+
+    TodoListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        todos:
+          type: array
+          items:
+            $ref: '#/components/schemas/Todo'
+        message:
+          type: string
+          example: "Found 3 todos"
+
+    TodoUpdateRequest:
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: string
+          description: Todo ID to update
+          example: "todo-123"
+        title:
+          type: string
+          description: New title
+          example: "Updated feature implementation"
+        description:
+          type: string
+          description: New description
+          example: "Updated task description"
+        status:
+          type: string
+          enum: ["backlog", "todo", "in_progress", "done"]
+          description: New status
+          example: "in_progress"
+        priority:
+          type: string
+          enum: ["high", "normal"]
+          description: New priority
+          example: "normal"
+        tags:
+          type: array
+          items:
+            type: string
+          description: New tags
+          example: ["development", "updated"]
+
+    TodoUpdateResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/Todo'
+        message:
+          type: string
+          example: "todo updated successfully"
+
+    TodoDeleteRequest:
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: string
+          description: Todo ID to delete
+          example: "todo-123"
+
+    TodoDeleteResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "todo deleted successfully"
+
+    Todo:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "todo-123"
+        title:
+          type: string
+          example: "Implement feature X"
+        description:
+          type: string
+          example: "Add new functionality to the app"
+        status:
+          type: string
+          enum: ["backlog", "todo", "in_progress", "done"]
+          example: "todo"
+        priority:
+          type: string
+          enum: ["high", "normal"]
+          example: "high"
+        tags:
+          type: array
+          items:
+            type: string
+          example: ["development", "urgent"]
+        parent_id:
+          type: string
+          example: "parent-todo-123"
+        created_at:
+          type: string
+          format: date-time
+          example: "2024-01-01T10:00:00Z"
+        last_modified:
+          type: string
+          format: date-time
+          example: "2024-01-01T10:00:00Z"
+        closed_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+
+    # Search Schemas
+    SearchRequest:
+      type: object
+      properties:
+        query:
+          type: string
+          description: Search query string
+          example: "meeting notes"
+        tags:
+          type: array
+          items:
+            type: string
+          description: Filter by tags
+          example: ["work"]
+        type:
+          type: string
+          enum: ["all", "memo", "todo"]
+          description: Filter by type
+          example: "all"
+
+    SearchResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        query:
+          type: string
+          example: "meeting notes"
+        type:
+          type: string
+          example: "all"
+        results:
+          $ref: '#/components/schemas/SearchResults'
+        message:
+          type: string
+          example: "Found 5 results"
+
+    SearchResults:
+      type: object
+      properties:
+        todos:
+          type: array
+          items:
+            $ref: '#/components/schemas/Todo'
+        memos:
+          type: array
+          items:
+            $ref: '#/components/schemas/Memo'
+
+    # Tag Schemas
+    TagListRequest:
+      type: object
+      description: Empty request body for tag listing
+
+    TagListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        tags:
+          type: array
+          items:
+            type: string
+          example: ["work", "personal", "urgent", "notes"]
+        count:
+          type: integer
+          example: 4
+        message:
+          type: string
+          example: "Found 4 unique tags"
+
+    # Error Schemas
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          description: Error message
+          example: "Invalid request format"
+        code:
+          type: string
+          description: Error code
+          example: "INVALID_REQUEST"
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error: "Invalid request format"
+            code: "BAD_REQUEST"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error: "Resource not found"
+            code: "NOT_FOUND"
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error: "Internal server error"
+            code: "INTERNAL_ERROR"
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for authentication
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Health
+    description: Health check operations
+  - name: Memo
+    description: Memo management operations
+  - name: Todo
+    description: Todo management operations
+  - name: Search
+    description: Search operations
+  - name: Tag
+    description: Tag management operations

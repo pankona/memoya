@@ -1,0 +1,1033 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>handlers: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">github.com/pankona/memoya/internal/handlers/memo.go (87.5%)</option>
+				
+				<option value="file1">github.com/pankona/memoya/internal/handlers/mock_storage.go (87.2%)</option>
+				
+				<option value="file2">github.com/pankona/memoya/internal/handlers/search.go (82.4%)</option>
+				
+				<option value="file3">github.com/pankona/memoya/internal/handlers/tag.go (81.8%)</option>
+				
+				<option value="file4">github.com/pankona/memoya/internal/handlers/todo.go (91.0%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">not covered</span>
+				<span class="cov8">covered</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">package handlers
+
+import (
+        "context"
+        "encoding/json"
+        "fmt"
+        "time"
+
+        "github.com/google/uuid"
+        "github.com/modelcontextprotocol/go-sdk/mcp"
+        "github.com/pankona/memoya/internal/models"
+        "github.com/pankona/memoya/internal/storage"
+)
+
+type MemoHandler struct {
+        storage storage.Storage
+}
+
+func NewMemoHandler() *MemoHandler <span class="cov8" title="1">{
+        // TODO: Initialize with actual storage
+        return &amp;MemoHandler{}
+}</span>
+
+func NewMemoHandlerWithStorage(storage storage.Storage) *MemoHandler <span class="cov8" title="1">{
+        return &amp;MemoHandler{
+                storage: storage,
+        }
+}</span>
+
+// MemoCreateArgs represents arguments for creating a memo
+type MemoCreateArgs struct {
+        Title       string   `json:"title"`
+        Description string   `json:"description,omitempty"`
+        Tags        []string `json:"tags,omitempty"`
+        LinkedTodos []string `json:"linked_todos,omitempty"`
+}
+
+// MemoResult represents the result of memo operations
+type MemoResult struct {
+        Success bool         `json:"success"`
+        Memo    *models.Memo `json:"memo"`
+        Message string       `json:"message"`
+}
+
+func (h *MemoHandler) Create(ctx context.Context, ss *mcp.ServerSession, params *mcp.CallToolParamsFor[MemoCreateArgs]) (*mcp.CallToolResultFor[MemoResult], error) <span class="cov8" title="1">{
+        args := params.Arguments
+
+        if h.storage == nil </span><span class="cov8" title="1">{
+                return nil, fmt.Errorf("storage not initialized")
+        }</span>
+
+        <span class="cov8" title="1">memo := &amp;models.Memo{
+                ID:           uuid.New().String(),
+                Title:        args.Title,
+                Description:  args.Description,
+                Tags:         args.Tags,
+                LinkedTodos:  args.LinkedTodos,
+                CreatedAt:    time.Now(),
+                LastModified: time.Now(),
+        }
+
+        // Save to storage
+        err := h.storage.CreateMemo(ctx, memo)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to create memo: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">return &amp;mcp.CallToolResultFor[MemoResult]{
+                Content: []mcp.Content{
+                        &amp;mcp.TextContent{Text: fmt.Sprintf("Memo '%s' created successfully with ID: %s", memo.Title, memo.ID)},
+                },
+        }, nil</span>
+}
+
+type MemoListArgs struct {
+        Tags []string `json:"tags,omitempty"`
+}
+
+type MemoListResult struct {
+        Success bool           `json:"success"`
+        Memos   []*models.Memo `json:"memos"`
+        Message string         `json:"message"`
+}
+
+func (h *MemoHandler) List(ctx context.Context, ss *mcp.ServerSession, params *mcp.CallToolParamsFor[MemoListArgs]) (*mcp.CallToolResultFor[MemoListResult], error) <span class="cov8" title="1">{
+        args := params.Arguments
+
+        if h.storage == nil </span><span class="cov8" title="1">{
+                return nil, fmt.Errorf("storage not initialized")
+        }</span>
+
+        // Create filters
+        <span class="cov8" title="1">filters := storage.MemoFilters{
+                Tags: args.Tags,
+        }
+
+        // Fetch from storage
+        memos, err := h.storage.ListMemos(ctx, filters)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to list memos: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">result := MemoListResult{
+                Success: true,
+                Memos:   memos,
+                Message: fmt.Sprintf("Found %d memos", len(memos)),
+        }
+
+        jsonBytes, err := json.Marshal(result)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to marshal result: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">return &amp;mcp.CallToolResultFor[MemoListResult]{
+                Content: []mcp.Content{
+                        &amp;mcp.TextContent{Text: string(jsonBytes)},
+                },
+        }, nil</span>
+}
+
+type MemoUpdateArgs struct {
+        ID          string   `json:"id"`
+        Title       string   `json:"title,omitempty"`
+        Description string   `json:"description,omitempty"`
+        Tags        []string `json:"tags,omitempty"`
+        LinkedTodos []string `json:"linked_todos,omitempty"`
+}
+
+func (h *MemoHandler) Update(ctx context.Context, ss *mcp.ServerSession, params *mcp.CallToolParamsFor[MemoUpdateArgs]) (*mcp.CallToolResultFor[MemoResult], error) <span class="cov8" title="1">{
+        args := params.Arguments
+
+        if h.storage == nil </span><span class="cov8" title="1">{
+                return nil, fmt.Errorf("storage not initialized")
+        }</span>
+
+        // Fetch existing memo from storage
+        <span class="cov8" title="1">memo, err := h.storage.GetMemo(ctx, args.ID)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to get memo: %w", err)
+        }</span>
+
+        // Update fields
+        <span class="cov8" title="1">if args.Title != "" </span><span class="cov8" title="1">{
+                memo.Title = args.Title
+        }</span>
+
+        <span class="cov8" title="1">if args.Description != "" </span><span class="cov8" title="1">{
+                memo.Description = args.Description
+        }</span>
+
+        <span class="cov8" title="1">if len(args.Tags) &gt; 0 </span><span class="cov8" title="1">{
+                memo.Tags = args.Tags
+        }</span>
+
+        <span class="cov8" title="1">if len(args.LinkedTodos) &gt; 0 </span><span class="cov8" title="1">{
+                memo.LinkedTodos = args.LinkedTodos
+        }</span>
+
+        <span class="cov8" title="1">memo.LastModified = time.Now()
+
+        // Save to storage
+        err = h.storage.UpdateMemo(ctx, memo)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to update memo: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">return &amp;mcp.CallToolResultFor[MemoResult]{
+                Content: []mcp.Content{
+                        &amp;mcp.TextContent{Text: fmt.Sprintf("Memo '%s' updated successfully", memo.Title)},
+                },
+        }, nil</span>
+}
+
+type MemoDeleteArgs struct {
+        ID string `json:"id"`
+}
+
+type MemoDeleteResult struct {
+        Success bool   `json:"success"`
+        Message string `json:"message"`
+}
+
+func (h *MemoHandler) Delete(ctx context.Context, ss *mcp.ServerSession, params *mcp.CallToolParamsFor[MemoDeleteArgs]) (*mcp.CallToolResultFor[MemoDeleteResult], error) <span class="cov8" title="1">{
+        args := params.Arguments
+
+        if h.storage == nil </span><span class="cov8" title="1">{
+                return nil, fmt.Errorf("storage not initialized")
+        }</span>
+
+        // Delete from storage
+        <span class="cov8" title="1">err := h.storage.DeleteMemo(ctx, args.ID)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to delete memo: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">return &amp;mcp.CallToolResultFor[MemoDeleteResult]{
+                Content: []mcp.Content{
+                        &amp;mcp.TextContent{Text: fmt.Sprintf("Memo %s deleted successfully", args.ID)},
+                },
+        }, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">package handlers
+
+import (
+        "context"
+        "fmt"
+        "time"
+
+        "github.com/pankona/memoya/internal/models"
+        "github.com/pankona/memoya/internal/storage"
+)
+
+type MockStorage struct {
+        todos map[string]*models.Todo
+        memos map[string]*models.Memo
+}
+
+func NewMockStorage() *MockStorage <span class="cov8" title="1">{
+        return &amp;MockStorage{
+                todos: make(map[string]*models.Todo),
+                memos: make(map[string]*models.Memo),
+        }
+}</span>
+
+func (m *MockStorage) CreateTodo(ctx context.Context, todo *models.Todo) error <span class="cov8" title="1">{
+        m.todos[todo.ID] = todo
+        return nil
+}</span>
+
+func (m *MockStorage) GetTodo(ctx context.Context, id string) (*models.Todo, error) <span class="cov8" title="1">{
+        todo, exists := m.todos[id]
+        if !exists </span><span class="cov8" title="1">{
+                return nil, fmt.Errorf("todo not found")
+        }</span>
+        <span class="cov8" title="1">return todo, nil</span>
+}
+
+func (m *MockStorage) UpdateTodo(ctx context.Context, todo *models.Todo) error <span class="cov8" title="1">{
+        if _, exists := m.todos[todo.ID]; !exists </span><span class="cov0" title="0">{
+                return fmt.Errorf("todo not found")
+        }</span>
+        <span class="cov8" title="1">m.todos[todo.ID] = todo
+        return nil</span>
+}
+
+func (m *MockStorage) DeleteTodo(ctx context.Context, id string) error <span class="cov8" title="1">{
+        if _, exists := m.todos[id]; !exists </span><span class="cov0" title="0">{
+                return fmt.Errorf("todo not found")
+        }</span>
+        <span class="cov8" title="1">delete(m.todos, id)
+        return nil</span>
+}
+
+func (m *MockStorage) ListTodos(ctx context.Context, filters storage.TodoFilters) ([]*models.Todo, error) <span class="cov8" title="1">{
+        var result []*models.Todo
+        for _, todo := range m.todos </span><span class="cov8" title="1">{
+                if m.matchesTodo(todo, filters) </span><span class="cov8" title="1">{
+                        result = append(result, todo)
+                }</span>
+        }
+        <span class="cov8" title="1">return result, nil</span>
+}
+
+func (m *MockStorage) CreateMemo(ctx context.Context, memo *models.Memo) error <span class="cov8" title="1">{
+        m.memos[memo.ID] = memo
+        return nil
+}</span>
+
+func (m *MockStorage) GetMemo(ctx context.Context, id string) (*models.Memo, error) <span class="cov8" title="1">{
+        memo, exists := m.memos[id]
+        if !exists </span><span class="cov8" title="1">{
+                return nil, fmt.Errorf("memo not found")
+        }</span>
+        <span class="cov8" title="1">return memo, nil</span>
+}
+
+func (m *MockStorage) UpdateMemo(ctx context.Context, memo *models.Memo) error <span class="cov8" title="1">{
+        if _, exists := m.memos[memo.ID]; !exists </span><span class="cov0" title="0">{
+                return fmt.Errorf("memo not found")
+        }</span>
+        <span class="cov8" title="1">m.memos[memo.ID] = memo
+        return nil</span>
+}
+
+func (m *MockStorage) DeleteMemo(ctx context.Context, id string) error <span class="cov8" title="1">{
+        if _, exists := m.memos[id]; !exists </span><span class="cov0" title="0">{
+                return fmt.Errorf("memo not found")
+        }</span>
+        <span class="cov8" title="1">delete(m.memos, id)
+        return nil</span>
+}
+
+func (m *MockStorage) ListMemos(ctx context.Context, filters storage.MemoFilters) ([]*models.Memo, error) <span class="cov8" title="1">{
+        var result []*models.Memo
+        for _, memo := range m.memos </span><span class="cov8" title="1">{
+                if m.matchesMemo(memo, filters) </span><span class="cov8" title="1">{
+                        result = append(result, memo)
+                }</span>
+        }
+        <span class="cov8" title="1">return result, nil</span>
+}
+
+func (m *MockStorage) Search(ctx context.Context, query string, filters storage.SearchFilters) (*storage.SearchResults, error) <span class="cov8" title="1">{
+        results := &amp;storage.SearchResults{
+                Todos: []*models.Todo{},
+                Memos: []*models.Memo{},
+        }
+
+        if filters.Type == "todo" || filters.Type == "all" || filters.Type == "" </span><span class="cov8" title="1">{
+                for _, todo := range m.todos </span><span class="cov8" title="1">{
+                        if m.matchesSearch(todo.Title, todo.Description, todo.Tags, query, filters.Tags) </span><span class="cov8" title="1">{
+                                results.Todos = append(results.Todos, todo)
+                        }</span>
+                }
+        }
+
+        <span class="cov8" title="1">if filters.Type == "memo" || filters.Type == "all" || filters.Type == "" </span><span class="cov8" title="1">{
+                for _, memo := range m.memos </span><span class="cov8" title="1">{
+                        if m.matchesSearch(memo.Title, memo.Description, memo.Tags, query, filters.Tags) </span><span class="cov8" title="1">{
+                                results.Memos = append(results.Memos, memo)
+                        }</span>
+                }
+        }
+
+        <span class="cov8" title="1">return results, nil</span>
+}
+
+func (m *MockStorage) GetAllTags(ctx context.Context) ([]string, error) <span class="cov8" title="1">{
+        tagSet := make(map[string]bool)
+
+        for _, todo := range m.todos </span><span class="cov8" title="1">{
+                for _, tag := range todo.Tags </span><span class="cov8" title="1">{
+                        tagSet[tag] = true
+                }</span>
+        }
+
+        <span class="cov8" title="1">for _, memo := range m.memos </span><span class="cov8" title="1">{
+                for _, tag := range memo.Tags </span><span class="cov8" title="1">{
+                        tagSet[tag] = true
+                }</span>
+        }
+
+        <span class="cov8" title="1">var tags []string
+        for tag := range tagSet </span><span class="cov8" title="1">{
+                tags = append(tags, tag)
+        }</span>
+        <span class="cov8" title="1">return tags, nil</span>
+}
+
+func (m *MockStorage) matchesTodo(todo *models.Todo, filters storage.TodoFilters) bool <span class="cov8" title="1">{
+        if filters.Status != nil &amp;&amp; todo.Status != *filters.Status </span><span class="cov8" title="1">{
+                return false
+        }</span>
+        <span class="cov8" title="1">if filters.Priority != nil &amp;&amp; todo.Priority != *filters.Priority </span><span class="cov8" title="1">{
+                return false
+        }</span>
+        <span class="cov8" title="1">if len(filters.Tags) &gt; 0 </span><span class="cov8" title="1">{
+                for _, filterTag := range filters.Tags </span><span class="cov8" title="1">{
+                        found := false
+                        for _, todoTag := range todo.Tags </span><span class="cov8" title="1">{
+                                if todoTag == filterTag </span><span class="cov8" title="1">{
+                                        found = true
+                                        break</span>
+                                }
+                        }
+                        <span class="cov8" title="1">if !found </span><span class="cov8" title="1">{
+                                return false
+                        }</span>
+                }
+        }
+        <span class="cov8" title="1">return true</span>
+}
+
+func (m *MockStorage) matchesMemo(memo *models.Memo, filters storage.MemoFilters) bool <span class="cov8" title="1">{
+        if len(filters.Tags) &gt; 0 </span><span class="cov8" title="1">{
+                for _, filterTag := range filters.Tags </span><span class="cov8" title="1">{
+                        found := false
+                        for _, memoTag := range memo.Tags </span><span class="cov8" title="1">{
+                                if memoTag == filterTag </span><span class="cov8" title="1">{
+                                        found = true
+                                        break</span>
+                                }
+                        }
+                        <span class="cov8" title="1">if !found </span><span class="cov8" title="1">{
+                                return false
+                        }</span>
+                }
+        }
+        <span class="cov8" title="1">return true</span>
+}
+
+func (m *MockStorage) matchesSearch(title, description string, tags []string, query string, searchTags []string) bool <span class="cov8" title="1">{
+        if query != "" </span><span class="cov8" title="1">{
+                if !contains(title, query) &amp;&amp; !contains(description, query) </span><span class="cov0" title="0">{
+                        queryFound := false
+                        for _, tag := range tags </span><span class="cov0" title="0">{
+                                if contains(tag, query) </span><span class="cov0" title="0">{
+                                        queryFound = true
+                                        break</span>
+                                }
+                        }
+                        <span class="cov0" title="0">if !queryFound </span><span class="cov0" title="0">{
+                                return false
+                        }</span>
+                }
+        }
+
+        <span class="cov8" title="1">if len(searchTags) &gt; 0 </span><span class="cov8" title="1">{
+                for _, searchTag := range searchTags </span><span class="cov8" title="1">{
+                        found := false
+                        for _, tag := range tags </span><span class="cov8" title="1">{
+                                if tag == searchTag </span><span class="cov8" title="1">{
+                                        found = true
+                                        break</span>
+                                }
+                        }
+                        <span class="cov8" title="1">if !found </span><span class="cov8" title="1">{
+                                return false
+                        }</span>
+                }
+        }
+
+        <span class="cov8" title="1">return true</span>
+}
+
+func contains(s, substr string) bool <span class="cov8" title="1">{
+        return len(s) &gt;= len(substr) &amp;&amp; (s == substr ||
+                (len(s) &gt; len(substr) &amp;&amp;
+                        (s[:len(substr)] == substr ||
+                                s[len(s)-len(substr):] == substr ||
+                                containsInMiddle(s, substr))))
+}</span>
+
+func containsInMiddle(s, substr string) bool <span class="cov0" title="0">{
+        for i := 0; i &lt;= len(s)-len(substr); i++ </span><span class="cov0" title="0">{
+                if s[i:i+len(substr)] == substr </span><span class="cov0" title="0">{
+                        return true
+                }</span>
+        }
+        <span class="cov0" title="0">return false</span>
+}
+
+func (m *MockStorage) SetupTestData() <span class="cov8" title="1">{
+        now := time.Now()
+
+        todo1 := &amp;models.Todo{
+                ID:           "test-todo-1",
+                Title:        "Test Todo 1",
+                Description:  "Test description 1",
+                Status:       "todo",
+                Priority:     "high",
+                Tags:         []string{"work", "urgent"},
+                CreatedAt:    now,
+                LastModified: now,
+        }
+
+        todo2 := &amp;models.Todo{
+                ID:           "test-todo-2",
+                Title:        "Test Todo 2",
+                Description:  "Test description 2",
+                Status:       "in_progress",
+                Priority:     "normal",
+                Tags:         []string{"personal"},
+                CreatedAt:    now,
+                LastModified: now,
+        }
+
+        memo1 := &amp;models.Memo{
+                ID:           "test-memo-1",
+                Title:        "Test Memo 1",
+                Description:  "Test memo description 1",
+                Tags:         []string{"work", "notes"},
+                LinkedTodos:  []string{"test-todo-1"},
+                CreatedAt:    now,
+                LastModified: now,
+        }
+
+        memo2 := &amp;models.Memo{
+                ID:           "test-memo-2",
+                Title:        "Test Memo 2",
+                Description:  "Test memo description 2",
+                Tags:         []string{"personal", "ideas"},
+                LinkedTodos:  []string{},
+                CreatedAt:    now,
+                LastModified: now,
+        }
+
+        m.todos[todo1.ID] = todo1
+        m.todos[todo2.ID] = todo2
+        m.memos[memo1.ID] = memo1
+        m.memos[memo2.ID] = memo2
+}</span>
+</pre>
+		
+		<pre class="file" id="file2" style="display: none">package handlers
+
+import (
+        "context"
+        "encoding/json"
+        "fmt"
+
+        "github.com/modelcontextprotocol/go-sdk/mcp"
+        "github.com/pankona/memoya/internal/models"
+        "github.com/pankona/memoya/internal/storage"
+)
+
+// SearchArgs represents arguments for search
+type SearchArgs struct {
+        Query string   `json:"query,omitempty"`
+        Tags  []string `json:"tags,omitempty"`
+        Type  string   `json:"type,omitempty"`
+}
+
+// SearchResult represents the result of search operation
+type SearchResult struct {
+        Success bool        `json:"success"`
+        Query   string      `json:"query"`
+        Tags    []string    `json:"tags"`
+        Type    string      `json:"type"`
+        Results SearchItems `json:"results"`
+        Message string      `json:"message"`
+}
+
+// SearchItems represents search results
+type SearchItems struct {
+        Todos []*models.Todo `json:"todos"`
+        Memos []*models.Memo `json:"memos"`
+}
+
+type SearchHandler struct {
+        storage storage.Storage
+}
+
+func NewSearchHandler(storage storage.Storage) *SearchHandler <span class="cov8" title="1">{
+        return &amp;SearchHandler{
+                storage: storage,
+        }
+}</span>
+
+func (h *SearchHandler) Search(ctx context.Context, ss *mcp.ServerSession, params *mcp.CallToolParamsFor[SearchArgs]) (*mcp.CallToolResultFor[SearchResult], error) <span class="cov8" title="1">{
+        args := params.Arguments
+
+        if h.storage == nil </span><span class="cov8" title="1">{
+                return nil, fmt.Errorf("storage not initialized")
+        }</span>
+
+        // Default to "all" if type not specified
+        <span class="cov8" title="1">searchType := args.Type
+        if searchType == "" </span><span class="cov8" title="1">{
+                searchType = "all"
+        }</span>
+
+        // Create search filters
+        <span class="cov8" title="1">filters := storage.SearchFilters{
+                Type: searchType,
+                Tags: args.Tags,
+        }
+
+        // Perform search
+        results, err := h.storage.Search(ctx, args.Query, filters)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to search: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">searchResult := SearchResult{
+                Success: true,
+                Query:   args.Query,
+                Tags:    args.Tags,
+                Type:    searchType,
+                Results: SearchItems{
+                        Todos: results.Todos,
+                        Memos: results.Memos,
+                },
+                Message: fmt.Sprintf("Found %d todos and %d memos", len(results.Todos), len(results.Memos)),
+        }
+
+        jsonBytes, err := json.Marshal(searchResult)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to marshal result: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">return &amp;mcp.CallToolResultFor[SearchResult]{
+                Content: []mcp.Content{
+                        &amp;mcp.TextContent{Text: string(jsonBytes)},
+                },
+        }, nil</span>
+}
+
+// Keep the old function for backward compatibility
+func Search(ctx context.Context, ss *mcp.ServerSession, params *mcp.CallToolParamsFor[SearchArgs]) (*mcp.CallToolResultFor[SearchResult], error) <span class="cov0" title="0">{
+        // This function is kept for backward compatibility but should not be used
+        return &amp;mcp.CallToolResultFor[SearchResult]{
+                Content: []mcp.Content{
+                        &amp;mcp.TextContent{Text: "Search not fully implemented yet - please use SearchHandler"},
+                },
+        }, nil
+}</span>
+</pre>
+		
+		<pre class="file" id="file3" style="display: none">package handlers
+
+import (
+        "context"
+        "encoding/json"
+        "fmt"
+
+        "github.com/modelcontextprotocol/go-sdk/mcp"
+        "github.com/pankona/memoya/internal/storage"
+)
+
+type TagHandler struct {
+        storage storage.Storage
+}
+
+func NewTagHandler(storage storage.Storage) *TagHandler <span class="cov8" title="1">{
+        return &amp;TagHandler{
+                storage: storage,
+        }
+}</span>
+
+// TagListArgs represents arguments for listing tags
+type TagListArgs struct {
+        // No arguments needed for listing all tags
+}
+
+// TagListResult represents the result of tag list operation
+type TagListResult struct {
+        Success bool     `json:"success"`
+        Tags    []string `json:"tags"`
+        Count   int      `json:"count"`
+        Message string   `json:"message"`
+}
+
+func (h *TagHandler) List(ctx context.Context, ss *mcp.ServerSession, params *mcp.CallToolParamsFor[TagListArgs]) (*mcp.CallToolResultFor[TagListResult], error) <span class="cov8" title="1">{
+        if h.storage == nil </span><span class="cov8" title="1">{
+                return nil, fmt.Errorf("storage not initialized")
+        }</span>
+
+        // Get all tags from storage
+        <span class="cov8" title="1">tags, err := h.storage.GetAllTags(ctx)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to get tags: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">result := TagListResult{
+                Success: true,
+                Tags:    tags,
+                Count:   len(tags),
+                Message: fmt.Sprintf("Found %d unique tags", len(tags)),
+        }
+
+        jsonBytes, err := json.Marshal(result)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to marshal result: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">return &amp;mcp.CallToolResultFor[TagListResult]{
+                Content: []mcp.Content{
+                        &amp;mcp.TextContent{Text: string(jsonBytes)},
+                },
+        }, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file4" style="display: none">package handlers
+
+import (
+        "context"
+        "encoding/json"
+        "fmt"
+        "time"
+
+        "github.com/google/uuid"
+        "github.com/modelcontextprotocol/go-sdk/mcp"
+        "github.com/pankona/memoya/internal/models"
+        "github.com/pankona/memoya/internal/storage"
+)
+
+type TodoHandler struct {
+        storage storage.Storage
+}
+
+func NewTodoHandler() *TodoHandler <span class="cov8" title="1">{
+        // TODO: Initialize with actual storage
+        return &amp;TodoHandler{}
+}</span>
+
+func NewTodoHandlerWithStorage(storage storage.Storage) *TodoHandler <span class="cov8" title="1">{
+        return &amp;TodoHandler{
+                storage: storage,
+        }
+}</span>
+
+// TodoCreateArgs represents arguments for creating a todo
+type TodoCreateArgs struct {
+        Title       string   `json:"title"`
+        Description string   `json:"description,omitempty"`
+        Status      string   `json:"status,omitempty"`
+        Priority    string   `json:"priority,omitempty"`
+        Tags        []string `json:"tags,omitempty"`
+        ParentID    string   `json:"parent_id,omitempty"`
+}
+
+// TodoResult represents the result of todo operations
+type TodoResult struct {
+        Success bool         `json:"success"`
+        Todo    *models.Todo `json:"todo"`
+        Message string       `json:"message"`
+}
+
+func (h *TodoHandler) Create(ctx context.Context, ss *mcp.ServerSession, params *mcp.CallToolParamsFor[TodoCreateArgs]) (*mcp.CallToolResultFor[TodoResult], error) <span class="cov8" title="1">{
+        args := params.Arguments
+
+        todo := &amp;models.Todo{
+                ID:           uuid.New().String(),
+                Title:        args.Title,
+                Description:  args.Description,
+                Tags:         args.Tags,
+                ParentID:     args.ParentID,
+                CreatedAt:    time.Now(),
+                LastModified: time.Now(),
+        }
+
+        // Set status with default
+        if args.Status != "" </span><span class="cov8" title="1">{
+                todo.Status = models.TodoStatus(args.Status)
+        }</span> else<span class="cov8" title="1"> {
+                todo.Status = models.StatusBacklog
+        }</span>
+
+        // Set priority with default
+        <span class="cov8" title="1">if args.Priority != "" </span><span class="cov8" title="1">{
+                todo.Priority = models.TodoPriority(args.Priority)
+        }</span> else<span class="cov8" title="1"> {
+                todo.Priority = models.PriorityNormal
+        }</span>
+
+        // Save to storage
+        <span class="cov8" title="1">if h.storage != nil </span><span class="cov8" title="1">{
+                err := h.storage.CreateTodo(ctx, todo)
+                if err != nil </span><span class="cov0" title="0">{
+                        return &amp;mcp.CallToolResultFor[TodoResult]{
+                                Content: []mcp.Content{
+                                        &amp;mcp.TextContent{Text: fmt.Sprintf("Failed to create todo: %v", err)},
+                                },
+                                IsError: true,
+                        }, nil
+                }</span>
+                <span class="cov8" title="1">return &amp;mcp.CallToolResultFor[TodoResult]{
+                        Content: []mcp.Content{
+                                &amp;mcp.TextContent{Text: fmt.Sprintf("Todo '%s' created successfully with ID: %s", todo.Title, todo.ID)},
+                        },
+                }, nil</span>
+        }
+
+        <span class="cov8" title="1">return &amp;mcp.CallToolResultFor[TodoResult]{
+                Content: []mcp.Content{
+                        &amp;mcp.TextContent{Text: "Todo created successfully (using mock storage)"},
+                },
+        }, nil</span>
+}
+
+type TodoListArgs struct {
+        Status   string   `json:"status,omitempty"`
+        Tags     []string `json:"tags,omitempty"`
+        Priority string   `json:"priority,omitempty"`
+}
+
+type TodoListResult struct {
+        Success bool           `json:"success"`
+        Todos   []*models.Todo `json:"todos"`
+        Message string         `json:"message"`
+}
+
+func (h *TodoHandler) List(ctx context.Context, ss *mcp.ServerSession, params *mcp.CallToolParamsFor[TodoListArgs]) (*mcp.CallToolResultFor[TodoListResult], error) <span class="cov8" title="1">{
+        args := params.Arguments
+
+        if h.storage != nil </span><span class="cov8" title="1">{
+                // Build filters from arguments
+                filters := storage.TodoFilters{}
+
+                if args.Status != "" </span><span class="cov8" title="1">{
+                        status := models.TodoStatus(args.Status)
+                        filters.Status = &amp;status
+                }</span>
+
+                <span class="cov8" title="1">if args.Priority != "" </span><span class="cov8" title="1">{
+                        priority := models.TodoPriority(args.Priority)
+                        filters.Priority = &amp;priority
+                }</span>
+
+                <span class="cov8" title="1">if len(args.Tags) &gt; 0 </span><span class="cov8" title="1">{
+                        filters.Tags = args.Tags
+                }</span>
+
+                <span class="cov8" title="1">todos, err := h.storage.ListTodos(ctx, filters)
+                if err != nil </span><span class="cov0" title="0">{
+                        return &amp;mcp.CallToolResultFor[TodoListResult]{
+                                Content: []mcp.Content{
+                                        &amp;mcp.TextContent{Text: fmt.Sprintf("Failed to list todos: %v", err)},
+                                },
+                                IsError: true,
+                        }, nil
+                }</span>
+
+                <span class="cov8" title="1">result := TodoListResult{
+                        Success: true,
+                        Todos:   todos,
+                        Message: fmt.Sprintf("Found %d todos", len(todos)),
+                }
+
+                jsonBytes, err := json.Marshal(result)
+                if err != nil </span><span class="cov0" title="0">{
+                        return nil, fmt.Errorf("failed to marshal result: %w", err)
+                }</span>
+
+                <span class="cov8" title="1">return &amp;mcp.CallToolResultFor[TodoListResult]{
+                        Content: []mcp.Content{
+                                &amp;mcp.TextContent{Text: string(jsonBytes)},
+                        },
+                }, nil</span>
+        }
+
+        <span class="cov8" title="1">return &amp;mcp.CallToolResultFor[TodoListResult]{
+                Content: []mcp.Content{
+                        &amp;mcp.TextContent{Text: "Todo listing (using mock storage - no todos)"},
+                },
+        }, nil</span>
+}
+
+type TodoUpdateArgs struct {
+        ID          string   `json:"id"`
+        Title       string   `json:"title,omitempty"`
+        Description string   `json:"description,omitempty"`
+        Status      string   `json:"status,omitempty"`
+        Priority    string   `json:"priority,omitempty"`
+        Tags        []string `json:"tags,omitempty"`
+}
+
+func (h *TodoHandler) Update(ctx context.Context, ss *mcp.ServerSession, params *mcp.CallToolParamsFor[TodoUpdateArgs]) (*mcp.CallToolResultFor[TodoResult], error) <span class="cov8" title="1">{
+        args := params.Arguments
+
+        if h.storage == nil </span><span class="cov8" title="1">{
+                return nil, fmt.Errorf("storage not initialized")
+        }</span>
+
+        // Fetch existing todo from storage
+        <span class="cov8" title="1">todo, err := h.storage.GetTodo(ctx, args.ID)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to get todo: %w", err)
+        }</span>
+
+        // Update fields
+        <span class="cov8" title="1">if args.Title != "" </span><span class="cov8" title="1">{
+                todo.Title = args.Title
+        }</span>
+
+        <span class="cov8" title="1">if args.Description != "" </span><span class="cov8" title="1">{
+                todo.Description = args.Description
+        }</span>
+
+        <span class="cov8" title="1">if args.Status != "" </span><span class="cov8" title="1">{
+                todo.Status = models.TodoStatus(args.Status)
+                if args.Status == "done" &amp;&amp; todo.ClosedAt == nil </span><span class="cov8" title="1">{
+                        now := time.Now()
+                        todo.ClosedAt = &amp;now
+                }</span>
+        }
+
+        <span class="cov8" title="1">if args.Priority != "" </span><span class="cov8" title="1">{
+                todo.Priority = models.TodoPriority(args.Priority)
+        }</span>
+
+        <span class="cov8" title="1">if len(args.Tags) &gt; 0 </span><span class="cov8" title="1">{
+                todo.Tags = args.Tags
+        }</span>
+
+        <span class="cov8" title="1">todo.LastModified = time.Now()
+
+        // Save to storage
+        err = h.storage.UpdateTodo(ctx, todo)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to update todo: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">return &amp;mcp.CallToolResultFor[TodoResult]{
+                Content: []mcp.Content{
+                        &amp;mcp.TextContent{Text: fmt.Sprintf("Todo '%s' updated successfully", todo.Title)},
+                },
+        }, nil</span>
+}
+
+type TodoDeleteArgs struct {
+        ID string `json:"id"`
+}
+
+type DeleteResult struct {
+        Success bool   `json:"success"`
+        Message string `json:"message"`
+}
+
+func (h *TodoHandler) Delete(ctx context.Context, ss *mcp.ServerSession, params *mcp.CallToolParamsFor[TodoDeleteArgs]) (*mcp.CallToolResultFor[DeleteResult], error) <span class="cov8" title="1">{
+        args := params.Arguments
+
+        if h.storage == nil </span><span class="cov8" title="1">{
+                return nil, fmt.Errorf("storage not initialized")
+        }</span>
+
+        // Delete from storage
+        <span class="cov8" title="1">err := h.storage.DeleteTodo(ctx, args.ID)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to delete todo: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">return &amp;mcp.CallToolResultFor[DeleteResult]{
+                Content: []mcp.Content{
+                        &amp;mcp.TextContent{Text: fmt.Sprintf("Todo %s deleted successfully", args.ID)},
+                },
+        }, nil</span>
+}
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>

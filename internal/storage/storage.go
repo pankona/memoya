@@ -24,6 +24,9 @@ type Storage interface {
 
 	// Search operations
 	Search(ctx context.Context, query string, filters SearchFilters) (*SearchResults, error)
+
+	// Tag operations
+	GetAllTags(ctx context.Context) ([]string, error)
 }
 
 type TodoFilters struct {

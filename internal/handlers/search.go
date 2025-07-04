@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -67,9 +68,26 @@ func (h *SearchHandler) Search(ctx context.Context, ss *mcp.ServerSession, param
 		return nil, fmt.Errorf("failed to search: %w", err)
 	}
 
+	searchResult := SearchResult{
+		Success: true,
+		Query:   args.Query,
+		Tags:    args.Tags,
+		Type:    searchType,
+		Results: SearchItems{
+			Todos: results.Todos,
+			Memos: results.Memos,
+		},
+		Message: fmt.Sprintf("Found %d todos and %d memos", len(results.Todos), len(results.Memos)),
+	}
+
+	jsonBytes, err := json.Marshal(searchResult)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal result: %w", err)
+	}
+
 	return &mcp.CallToolResultFor[SearchResult]{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: fmt.Sprintf("Found %d todos and %d memos", len(results.Todos), len(results.Memos))},
+			&mcp.TextContent{Text: string(jsonBytes)},
 		},
 	}, nil
 }

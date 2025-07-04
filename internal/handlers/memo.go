@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -99,9 +100,20 @@ func (h *MemoHandler) List(ctx context.Context, ss *mcp.ServerSession, params *m
 		return nil, fmt.Errorf("failed to list memos: %w", err)
 	}
 
+	result := MemoListResult{
+		Success: true,
+		Memos:   memos,
+		Message: fmt.Sprintf("Found %d memos", len(memos)),
+	}
+
+	jsonBytes, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal result: %w", err)
+	}
+
 	return &mcp.CallToolResultFor[MemoListResult]{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: fmt.Sprintf("Found %d memos", len(memos))},
+			&mcp.TextContent{Text: string(jsonBytes)},
 		},
 	}, nil
 }

@@ -339,3 +339,64 @@ func (fs *FirestoreStorage) searchMemos(ctx context.Context, query string, tags 
 
 	return memos, nil
 }
+
+// GetAllTags retrieves all unique tags from both todos and memos
+func (fs *FirestoreStorage) GetAllTags(ctx context.Context) ([]string, error) {
+	tagSet := make(map[string]bool)
+
+	// Get tags from todos
+	todoIter := fs.client.Collection("todos").Documents(ctx)
+	for {
+		doc, err := todoIter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		var todo models.Todo
+		if err := doc.DataTo(&todo); err != nil {
+			continue // Skip documents that can't be parsed
+		}
+
+		for _, tag := range todo.Tags {
+			if tag != "" {
+				tagSet[tag] = true
+			}
+		}
+	}
+	todoIter.Stop()
+
+	// Get tags from memos
+	memoIter := fs.client.Collection("memos").Documents(ctx)
+	for {
+		doc, err := memoIter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		var memo models.Memo
+		if err := doc.DataTo(&memo); err != nil {
+			continue // Skip documents that can't be parsed
+		}
+
+		for _, tag := range memo.Tags {
+			if tag != "" {
+				tagSet[tag] = true
+			}
+		}
+	}
+	memoIter.Stop()
+
+	// Convert map to sorted slice
+	tags := make([]string, 0, len(tagSet))
+	for tag := range tagSet {
+		tags = append(tags, tag)
+	}
+
+	return tags, nil
+}

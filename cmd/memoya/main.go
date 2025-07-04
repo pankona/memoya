@@ -42,6 +42,7 @@ func main() {
 	todoHandler := handlers.NewTodoHandlerWithStorage(store)
 	memoHandler := handlers.NewMemoHandlerWithStorage(store)
 	searchHandler := handlers.NewSearchHandler(store)
+	tagHandler := handlers.NewTagHandler(store)
 
 	// Register todo tools
 	server.AddTools(
@@ -145,6 +146,16 @@ func main() {
 				mcp.Property("tags", mcp.Description("Filter by tags")),
 				mcp.Property("type", mcp.Description("Filter by type (todo, memo, all)")),
 			),
+		),
+	)
+
+	// Register tag tools
+	server.AddTools(
+		mcp.NewServerTool(
+			"tag_list",
+			"List all unique tags from todos and memos",
+			tagHandler.List,
+			mcp.Input(),
 		),
 	)
 

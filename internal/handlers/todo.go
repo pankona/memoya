@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -138,9 +139,20 @@ func (h *TodoHandler) List(ctx context.Context, ss *mcp.ServerSession, params *m
 			}, nil
 		}
 
+		result := TodoListResult{
+			Success: true,
+			Todos:   todos,
+			Message: fmt.Sprintf("Found %d todos", len(todos)),
+		}
+
+		jsonBytes, err := json.Marshal(result)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal result: %w", err)
+		}
+
 		return &mcp.CallToolResultFor[TodoListResult]{
 			Content: []mcp.Content{
-				&mcp.TextContent{Text: fmt.Sprintf("Found %d todos", len(todos))},
+				&mcp.TextContent{Text: string(jsonBytes)},
 			},
 		}, nil
 	}

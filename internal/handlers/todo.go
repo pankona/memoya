@@ -164,16 +164,14 @@ type TodoUpdateArgs struct {
 func (h *TodoHandler) Update(ctx context.Context, ss *mcp.ServerSession, params *mcp.CallToolParamsFor[TodoUpdateArgs]) (*mcp.CallToolResultFor[TodoResult], error) {
 	args := params.Arguments
 
-	// TODO: Fetch existing todo from storage
-	// todo, err := h.storage.GetTodo(ctx, args.ID)
-	// if err != nil {
-	//     return nil, err
-	// }
+	if h.storage == nil {
+		return nil, fmt.Errorf("storage not initialized")
+	}
 
-	// For now, create a dummy todo
-	todo := &models.Todo{
-		ID:           args.ID,
-		LastModified: time.Now(),
+	// Fetch existing todo from storage
+	todo, err := h.storage.GetTodo(ctx, args.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get todo: %w", err)
 	}
 
 	// Update fields
@@ -201,15 +199,17 @@ func (h *TodoHandler) Update(ctx context.Context, ss *mcp.ServerSession, params 
 		todo.Tags = args.Tags
 	}
 
-	// TODO: Save to storage
-	// err = h.storage.UpdateTodo(ctx, todo)
-	// if err != nil {
-	//     return nil, err
-	// }
+	todo.LastModified = time.Now()
+
+	// Save to storage
+	err = h.storage.UpdateTodo(ctx, todo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update todo: %w", err)
+	}
 
 	return &mcp.CallToolResultFor[TodoResult]{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: "Todo updated successfully (storage not implemented yet)"},
+			&mcp.TextContent{Text: fmt.Sprintf("Todo '%s' updated successfully", todo.Title)},
 		},
 	}, nil
 }
@@ -226,15 +226,19 @@ type DeleteResult struct {
 func (h *TodoHandler) Delete(ctx context.Context, ss *mcp.ServerSession, params *mcp.CallToolParamsFor[TodoDeleteArgs]) (*mcp.CallToolResultFor[DeleteResult], error) {
 	args := params.Arguments
 
-	// TODO: Delete from storage
-	// err := h.storage.DeleteTodo(ctx, args.ID)
-	// if err != nil {
-	//     return nil, err
-	// }
+	if h.storage == nil {
+		return nil, fmt.Errorf("storage not initialized")
+	}
+
+	// Delete from storage
+	err := h.storage.DeleteTodo(ctx, args.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to delete todo: %w", err)
+	}
 
 	return &mcp.CallToolResultFor[DeleteResult]{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: fmt.Sprintf("Todo %s deleted successfully (storage not implemented yet)", args.ID)},
+			&mcp.TextContent{Text: fmt.Sprintf("Todo %s deleted successfully", args.ID)},
 		},
 	}, nil
 }

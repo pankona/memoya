@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 
+	"github.com/joho/godotenv"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/pankona/memoya/config"
 	"github.com/pankona/memoya/internal/handlers"
@@ -12,6 +13,9 @@ import (
 
 func main() {
 	ctx := context.Background()
+
+	// Load .env file if exists
+	_ = godotenv.Load()
 
 	// Load configuration
 	cfg := config.Load()
@@ -37,6 +41,7 @@ func main() {
 	// Create handlers
 	todoHandler := handlers.NewTodoHandlerWithStorage(store)
 	memoHandler := handlers.NewMemoHandlerWithStorage(store)
+	searchHandler := handlers.NewSearchHandler(store)
 
 	// Register todo tools
 	server.AddTools(
@@ -134,7 +139,7 @@ func main() {
 		mcp.NewServerTool(
 			"search",
 			"Search todos and memos by keyword or tags",
-			handlers.Search,
+			searchHandler.Search,
 			mcp.Input(
 				mcp.Property("query", mcp.Description("Search query")),
 				mcp.Property("tags", mcp.Description("Filter by tags")),

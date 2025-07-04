@@ -44,7 +44,11 @@ type MemoResult struct {
 func (h *MemoHandler) Create(ctx context.Context, ss *mcp.ServerSession, params *mcp.CallToolParamsFor[MemoCreateArgs]) (*mcp.CallToolResultFor[MemoResult], error) {
 	args := params.Arguments
 
-	_ = &models.Memo{
+	if h.storage == nil {
+		return nil, fmt.Errorf("storage not initialized")
+	}
+
+	memo := &models.Memo{
 		ID:           uuid.New().String(),
 		Title:        args.Title,
 		Description:  args.Description,
@@ -54,15 +58,15 @@ func (h *MemoHandler) Create(ctx context.Context, ss *mcp.ServerSession, params 
 		LastModified: time.Now(),
 	}
 
-	// TODO: Save to storage
-	// err := h.storage.CreateMemo(ctx, memo)
-	// if err != nil {
-	//     return nil, err
-	// }
+	// Save to storage
+	err := h.storage.CreateMemo(ctx, memo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create memo: %w", err)
+	}
 
 	return &mcp.CallToolResultFor[MemoResult]{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: "Memo created successfully (storage not implemented yet)"},
+			&mcp.TextContent{Text: fmt.Sprintf("Memo '%s' created successfully with ID: %s", memo.Title, memo.ID)},
 		},
 	}, nil
 }
@@ -78,10 +82,26 @@ type MemoListResult struct {
 }
 
 func (h *MemoHandler) List(ctx context.Context, ss *mcp.ServerSession, params *mcp.CallToolParamsFor[MemoListArgs]) (*mcp.CallToolResultFor[MemoListResult], error) {
-	// TODO: Implement filtering and fetch from storage
+	args := params.Arguments
+
+	if h.storage == nil {
+		return nil, fmt.Errorf("storage not initialized")
+	}
+
+	// Create filters
+	filters := storage.MemoFilters{
+		Tags: args.Tags,
+	}
+
+	// Fetch from storage
+	memos, err := h.storage.ListMemos(ctx, filters)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list memos: %w", err)
+	}
+
 	return &mcp.CallToolResultFor[MemoListResult]{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: "Memo listing not fully implemented yet"},
+			&mcp.TextContent{Text: fmt.Sprintf("Found %d memos", len(memos))},
 		},
 	}, nil
 }
@@ -97,16 +117,14 @@ type MemoUpdateArgs struct {
 func (h *MemoHandler) Update(ctx context.Context, ss *mcp.ServerSession, params *mcp.CallToolParamsFor[MemoUpdateArgs]) (*mcp.CallToolResultFor[MemoResult], error) {
 	args := params.Arguments
 
-	// TODO: Fetch existing memo from storage
-	// memo, err := h.storage.GetMemo(ctx, args.ID)
-	// if err != nil {
-	//     return nil, err
-	// }
+	if h.storage == nil {
+		return nil, fmt.Errorf("storage not initialized")
+	}
 
-	// For now, create a dummy memo
-	memo := &models.Memo{
-		ID:           args.ID,
-		LastModified: time.Now(),
+	// Fetch existing memo from storage
+	memo, err := h.storage.GetMemo(ctx, args.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get memo: %w", err)
 	}
 
 	// Update fields
@@ -126,15 +144,17 @@ func (h *MemoHandler) Update(ctx context.Context, ss *mcp.ServerSession, params 
 		memo.LinkedTodos = args.LinkedTodos
 	}
 
-	// TODO: Save to storage
-	// err = h.storage.UpdateMemo(ctx, memo)
-	// if err != nil {
-	//     return nil, err
-	// }
+	memo.LastModified = time.Now()
+
+	// Save to storage
+	err = h.storage.UpdateMemo(ctx, memo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update memo: %w", err)
+	}
 
 	return &mcp.CallToolResultFor[MemoResult]{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: "Memo updated successfully (storage not implemented yet)"},
+			&mcp.TextContent{Text: fmt.Sprintf("Memo '%s' updated successfully", memo.Title)},
 		},
 	}, nil
 }
@@ -151,15 +171,19 @@ type MemoDeleteResult struct {
 func (h *MemoHandler) Delete(ctx context.Context, ss *mcp.ServerSession, params *mcp.CallToolParamsFor[MemoDeleteArgs]) (*mcp.CallToolResultFor[MemoDeleteResult], error) {
 	args := params.Arguments
 
-	// TODO: Delete from storage
-	// err := h.storage.DeleteMemo(ctx, args.ID)
-	// if err != nil {
-	//     return nil, err
-	// }
+	if h.storage == nil {
+		return nil, fmt.Errorf("storage not initialized")
+	}
+
+	// Delete from storage
+	err := h.storage.DeleteMemo(ctx, args.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to delete memo: %w", err)
+	}
 
 	return &mcp.CallToolResultFor[MemoDeleteResult]{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: fmt.Sprintf("Memo %s deleted successfully (storage not implemented yet)", args.ID)},
+			&mcp.TextContent{Text: fmt.Sprintf("Memo %s deleted successfully", args.ID)},
 		},
 	}, nil
 }

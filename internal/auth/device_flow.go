@@ -52,7 +52,7 @@ func (s *DeviceFlowService) StartDeviceFlow(ctx context.Context) (*models.Device
 	// Request device code from Google
 	data := url.Values{}
 	data.Set("client_id", s.clientID)
-	data.Set("scope", "openid profile")
+	data.Set("scope", "openid email profile")
 
 	req, err := http.NewRequestWithContext(ctx, "POST", GoogleDeviceAuthURL, strings.NewReader(data.Encode()))
 	if err != nil {

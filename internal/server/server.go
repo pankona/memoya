@@ -1,12 +1,16 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/pankona/memoya/internal/config"
 	"github.com/pankona/memoya/internal/generated/server"
 	"github.com/pankona/memoya/internal/handlers"
 	"github.com/pankona/memoya/internal/storage"
@@ -22,17 +26,29 @@ type Server struct {
 }
 
 // NewServer creates a new server instance
-func NewServer(storage storage.Storage) *Server {
-	// TODO: Get OAuth credentials from environment variables
-	clientID := "memoya-client-id"         // Should come from env
-	clientSecret := "memoya-client-secret" // Should come from env
+func NewServer(ctx context.Context, storage storage.Storage) *Server {
+	// Get project ID for Secret Manager
+	projectID := os.Getenv("PROJECT_ID")
+	if projectID == "" {
+		projectID = os.Getenv("FIREBASE_PROJECT_ID")
+	}
+
+	// Get OAuth credentials from environment variables or Secret Manager
+	credentials, err := config.GetOAuthCredentials(ctx, projectID)
+	if err != nil {
+		log.Printf("Warning: Failed to get OAuth credentials: %v. Using fallback values.", err)
+		credentials = &config.OAuthCredentials{
+			ClientID:     "memoya-client-id",
+			ClientSecret: "memoya-client-secret",
+		}
+	}
 
 	return &Server{
 		memoHandler:   handlers.NewMemoHandlerWithStorage(storage),
 		todoHandler:   handlers.NewTodoHandlerWithStorage(storage),
 		searchHandler: handlers.NewSearchHandler(storage),
 		tagHandler:    handlers.NewTagHandler(storage),
-		authHandler:   handlers.NewAuthHandler(storage, clientID, clientSecret),
+		authHandler:   handlers.NewAuthHandler(storage, credentials.ClientID, credentials.ClientSecret),
 	}
 }
 

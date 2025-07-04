@@ -15,7 +15,7 @@ import (
 func TestServer_HealthCheck(t *testing.T) {
 	// Mock storage setup
 	mockStorage := handlers.NewMockStorage()
-	server := NewServer(mockStorage)
+	server := NewServer(context.Background(), mockStorage)
 
 	req, err := http.NewRequest("GET", "/health", nil)
 	if err != nil {
@@ -56,7 +56,7 @@ func TestServer_CreateMemo(t *testing.T) {
 	// Mock storage setup with test data
 	mockStorage := handlers.NewMockStorage()
 	mockStorage.SetupTestData()
-	server := NewServer(mockStorage)
+	server := NewServer(context.Background(), mockStorage)
 
 	// Test case: valid memo creation
 	reqBody := map[string]interface{}{
@@ -119,7 +119,7 @@ func TestServer_CreateMemo(t *testing.T) {
 
 func TestServer_CreateMemo_InvalidJSON(t *testing.T) {
 	mockStorage := handlers.NewMockStorage()
-	server := NewServer(mockStorage)
+	server := NewServer(context.Background(), mockStorage)
 
 	// Test case: invalid JSON
 	req, err := http.NewRequest("POST", "/mcp/memo_create", bytes.NewBuffer([]byte("invalid json")))
@@ -155,7 +155,7 @@ func TestServer_ListMemos(t *testing.T) {
 	// Mock storage setup with test data
 	mockStorage := handlers.NewMockStorage()
 	mockStorage.SetupTestData()
-	server := NewServer(mockStorage)
+	server := NewServer(context.Background(), mockStorage)
 
 	// Test case: list all memos
 	reqBody := map[string]interface{}{}
@@ -202,7 +202,7 @@ func TestServer_ListMemos_WithTagFilter(t *testing.T) {
 	// Mock storage setup with test data
 	mockStorage := handlers.NewMockStorage()
 	mockStorage.SetupTestData()
-	server := NewServer(mockStorage)
+	server := NewServer(context.Background(), mockStorage)
 
 	// Test case: list memos with tag filter
 	reqBody := map[string]interface{}{
@@ -257,7 +257,7 @@ func TestServer_CreateTodo(t *testing.T) {
 	// Mock storage setup with test data
 	mockStorage := handlers.NewMockStorage()
 	mockStorage.SetupTestData()
-	server := NewServer(mockStorage)
+	server := NewServer(context.Background(), mockStorage)
 
 	// Test case: valid todo creation
 	reqBody := map[string]interface{}{
@@ -319,7 +319,7 @@ func TestServer_ListTodos(t *testing.T) {
 	// Mock storage setup with test data
 	mockStorage := handlers.NewMockStorage()
 	mockStorage.SetupTestData()
-	server := NewServer(mockStorage)
+	server := NewServer(context.Background(), mockStorage)
 
 	// Test case: list all todos
 	reqBody := map[string]interface{}{}
@@ -366,7 +366,7 @@ func TestServer_Search(t *testing.T) {
 	// Mock storage setup with test data
 	mockStorage := handlers.NewMockStorage()
 	mockStorage.SetupTestData()
-	server := NewServer(mockStorage)
+	server := NewServer(context.Background(), mockStorage)
 
 	// Test case: search with query
 	reqBody := map[string]interface{}{
@@ -412,7 +412,7 @@ func TestServer_ListTags(t *testing.T) {
 	// Mock storage setup with test data
 	mockStorage := handlers.NewMockStorage()
 	mockStorage.SetupTestData()
-	server := NewServer(mockStorage)
+	server := NewServer(context.Background(), mockStorage)
 
 	// Test case: list all tags
 	reqBody := map[string]interface{}{}
@@ -459,7 +459,7 @@ func TestServer_UpdateMemo(t *testing.T) {
 	// Mock storage setup with test data
 	mockStorage := handlers.NewMockStorage()
 	mockStorage.SetupTestData()
-	server := NewServer(mockStorage)
+	server := NewServer(context.Background(), mockStorage)
 
 	// Test case: valid memo update
 	reqBody := map[string]interface{}{
@@ -517,7 +517,7 @@ func TestServer_DeleteMemo(t *testing.T) {
 	// Mock storage setup with test data
 	mockStorage := handlers.NewMockStorage()
 	mockStorage.SetupTestData()
-	server := NewServer(mockStorage)
+	server := NewServer(context.Background(), mockStorage)
 
 	// Test case: valid memo deletion
 	reqBody := map[string]interface{}{
@@ -563,7 +563,7 @@ func TestServer_GetUserInfo(t *testing.T) {
 	// Mock storage setup with test data
 	mockStorage := handlers.NewMockStorage()
 	mockStorage.SetupTestData()
-	server := NewServer(mockStorage)
+	server := NewServer(context.Background(), mockStorage)
 
 	req, err := http.NewRequest("GET", "/auth/user", nil)
 	if err != nil {
@@ -607,7 +607,7 @@ func TestServer_DeleteAccount(t *testing.T) {
 	// Mock storage setup with test data
 	mockStorage := handlers.NewMockStorage()
 	mockStorage.SetupTestData()
-	server := NewServer(mockStorage)
+	server := NewServer(context.Background(), mockStorage)
 
 	// Verify initial data exists
 	if len(mockStorage.GetUsers()) == 0 {

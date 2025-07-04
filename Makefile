@@ -16,6 +16,8 @@ install:
 generate:
 	@echo "Installing oapi-codegen v2..."
 	go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
+	@echo "Creating output directories..."
+	mkdir -p internal/generated/server internal/generated/client
 	@echo "Generating server code from OpenAPI spec..."
 	oapi-codegen -config api/server-config.yaml api/openapi.yaml
 	@echo "Generating client code from OpenAPI spec..."

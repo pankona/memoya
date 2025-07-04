@@ -1,8 +1,8 @@
-# Dockerfile for Cloud Run deployment
-FROM golang:1.21-alpine AS builder
+# Dockerfile for Cloud Run deployment  
+FROM golang:1.23 AS builder
 
 # Install dependencies
-RUN apk --no-cache add ca-certificates git
+RUN apt-get update && apt-get install -y ca-certificates git make wget && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -14,16 +14,15 @@ RUN go mod download
 COPY . .
 
 # Generate OpenAPI code
-RUN go install github.com/deepmap/oapi-codegen/cmd/oapi-codegen@latest
 RUN make generate
 
 # Build the server binary
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o memoya-server ./cmd/memoya-server
 
 # Runtime stage
-FROM alpine:latest
+FROM debian:bookworm-slim
 
-RUN apk --no-cache add ca-certificates tzdata
+RUN apt-get update && apt-get install -y ca-certificates tzdata wget && rm -rf /var/lib/apt/lists/*
 WORKDIR /root/
 
 # Copy the binary from builder stage

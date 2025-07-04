@@ -1,0 +1,55 @@
+# Cloud Build configuration for memoya Cloud Run deployment
+steps:
+  # Build the Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [
+      'build',
+      '-t', 'gcr.io/$PROJECT_ID/memoya-server:$COMMIT_SHA',
+      '-t', 'gcr.io/$PROJECT_ID/memoya-server:latest',
+      '.'
+    ]
+
+  # Push the Docker image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/memoya-server:$COMMIT_SHA']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/memoya-server:latest']
+
+  # Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args: [
+      'run', 'deploy', 'memoya-server',
+      '--image', 'gcr.io/$PROJECT_ID/memoya-server:$COMMIT_SHA',
+      '--region', 'asia-northeast1',
+      '--platform', 'managed',
+      '--allow-unauthenticated',
+      '--port', '8080',
+      '--memory', '512Mi',
+      '--cpu', '1',
+      '--min-instances', '0',
+      '--max-instances', '10',
+      '--concurrency', '80',
+      '--timeout', '300',
+      '--set-env-vars', 'PROJECT_ID=$PROJECT_ID',
+      '--service-account', 'memoya-server@$PROJECT_ID.iam.gserviceaccount.com'
+    ]
+
+# Specify the images to be pushed to Container Registry
+images:
+  - 'gcr.io/$PROJECT_ID/memoya-server:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/memoya-server:latest'
+
+# Build options
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'
+
+# Build timeout
+timeout: '1200s'
+
+# Substitutions for variables
+substitutions:
+  _REGION: 'asia-northeast1'
+  _SERVICE_NAME: 'memoya-server'

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -34,7 +35,7 @@ func main() {
 	defer storage.Close()
 
 	// Create server implementation
-	serverImpl := server.NewServer(storage)
+	serverImpl := server.NewServer(ctx, storage)
 
 	// Create router
 	r := chi.NewRouter()
@@ -46,8 +47,17 @@ func main() {
 	r.Use(middleware.Timeout(60 * time.Second))
 
 	// CORS configuration
+	allowedOrigins := []string{"*"} // Default to allow all for development
+	if corsOrigins := os.Getenv("CORS_ALLOWED_ORIGINS"); corsOrigins != "" {
+		// Parse comma-separated origins for production
+		allowedOrigins = strings.Split(corsOrigins, ",")
+		for i, origin := range allowedOrigins {
+			allowedOrigins[i] = strings.TrimSpace(origin)
+		}
+	}
+
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"*"}, // Configure appropriately for production
+		AllowedOrigins:   allowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
 		ExposedHeaders:   []string{"Link"},

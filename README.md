@@ -11,10 +11,45 @@ memoyaは2つのデプロイメント方式をサポートしています：
 Claude Desktop ↔ MCP Client (Local) ↔ Firestore
 ```
 
-### 2. Cloud Run対応（新方式）
+### 2. Cloud Run対応（新方式・推奨）
 ```
 Claude Desktop ↔ MCP Client (Local) ↔ HTTP ↔ Cloud Run Server ↔ Firestore
 ```
+
+## 🚀 クイックスタート (Cloud Run)
+
+### 1. GCP環境の自動セットアップ
+```bash
+# 必要なAPIとリソースを自動で設定
+./scripts/setup-gcp.sh
+```
+
+### 2. OAuth認証設定（手動）
+[Google Cloud Console](https://console.cloud.google.com/apis/credentials) でOAuth 2.0 Client IDを作成：
+- Application type: `Desktop application`
+- Client ID と Client Secret をコピー
+
+### 3. OAuth情報の設定
+```bash
+# インタラクティブに設定
+./scripts/setup-secrets.sh
+
+# または手動で設定
+echo 'YOUR_CLIENT_ID' | gcloud secrets versions add oauth-client-id --data-file=-
+echo 'YOUR_CLIENT_SECRET' | gcloud secrets versions add oauth-client-secret --data-file=-
+```
+
+### 4. デプロイ実行
+```bash
+./scripts/deploy.sh
+```
+
+### 5. Claude Desktop設定
+サービスURLを取得してMCPクライアント設定に追加
+
+---
+
+**詳細な手順は [デプロイメントガイド](./docs/DEPLOYMENT.md) を参照してください。**
 
 ## 機能
 

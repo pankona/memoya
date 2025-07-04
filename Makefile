@@ -1,4 +1,10 @@
-.PHONY: lint test fmt
+.PHONY: build install lint test fmt
+
+build:
+	go build -o memoya ./cmd/memoya
+
+install:
+	go install ./cmd/memoya
 
 lint:
 	go vet ./...

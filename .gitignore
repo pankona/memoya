@@ -1,0 +1,14 @@
+# Firebase service account keys
+*firebase-adminsdk*.json
+
+# Environment variables
+.env
+.env.local
+
+# Build artifacts
+memoya
+*.exe
+
+# OS files
+.DS_Store
+Thumbs.db

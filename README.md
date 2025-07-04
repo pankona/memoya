@@ -26,37 +26,76 @@ memoya は Todo管理とメモ機能を提供するMCP (Model Context Protocol) 
 ## セットアップ
 
 ### 必要な環境
-- Go 1.24.4以上
+- Go 1.22以上
 - Firebase プロジェクト（Firestore使用）
 
 ### インストール
 
-1. リポジトリをクローン
 ```bash
-git clone <repository-url>
+# ソースからインストール
+git clone https://github.com/pankona/memoya.git
 cd memoya
+make install
+
+# または go install を直接使用
+go install github.com/pankona/memoya/cmd/memoya@latest
 ```
 
-2. 依存関係をインストール
-```bash
-go mod download
-```
+### Firebase設定
 
-3. 環境変数を設定
+1. [Firebase Console](https://console.firebase.google.com/)でプロジェクトを作成
+2. Firestore Databaseを有効化（テストモードでOK）
+3. プロジェクト設定 → サービスアカウント → 新しい秘密鍵の生成
+4. ダウンロードしたJSONファイルを安全な場所に保存
+
+### 環境変数の設定
+
 ```bash
+# .envファイルを作成（推奨）
+cat > .env << EOF
+FIREBASE_PROJECT_ID=your-project-id
+GOOGLE_APPLICATION_CREDENTIALS=./path-to-service-account-key.json
+EOF
+
+# または環境変数として設定
 export FIREBASE_PROJECT_ID=your-firebase-project-id
-```
-
-4. ビルド
-```bash
-go build ./cmd/memoya
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json
 ```
 
 ## 使用方法
 
-### MCPサーバーとして起動
+### Claude Desktopでの利用
+
+1. Claude Desktopの設定ファイルを開く
+   - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+   - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+   - Linux: `~/.config/Claude/claude_desktop_config.json`
+
+2. 以下の設定を追加:
+
+```json
+{
+  "mcpServers": {
+    "memoya": {
+      "command": "memoya",
+      "env": {
+        "FIREBASE_PROJECT_ID": "your-project-id",
+        "GOOGLE_APPLICATION_CREDENTIALS": "/absolute/path/to/service-account-key.json"
+      }
+    }
+  }
+}
+```
+
+3. Claude Desktopを再起動
+
+### コマンドラインでの起動
 ```bash
-./memoya
+# 環境変数を設定して起動
+memoya
+
+# または .env ファイルがある場合
+memoya  # .envファイルは自動的に読み込まれます
 ```
 
 ### 利用可能なツール
@@ -78,19 +117,23 @@ go build ./cmd/memoya
 
 ### 使用例
 
-AIクライアントから以下のようにツールを呼び出します：
+Claude Desktopで以下のような対話が可能です：
 
-```json
-{
-  "tool": "todo_create",
-  "arguments": {
-    "title": "プロジェクトの企画書を作成",
-    "description": "来週のミーティング用の企画書を準備する",
-    "status": "todo",
-    "priority": "high",
-    "tags": ["work", "urgent"]
-  }
-}
+```
+あなた: 「memoyaで新しいTodoを作成して。タイトルは'プロジェクトの企画書を作成'で、優先度は高にして」
+
+Claude: todo_createツールを使用してTodoを作成しました：
+- タイトル: プロジェクトの企画書を作成
+- ステータス: todo
+- 優先度: high
+- ID: abc123
+
+あなた: 「workタグが付いているTodoをすべて表示して」
+
+Claude: workタグが付いているTodoは以下の3件です：
+1. プロジェクトの企画書を作成 (優先度: high, ステータス: todo)
+2. チームミーティング準備 (優先度: normal, ステータス: in_progress)
+3. 月次レポート提出 (優先度: high, ステータス: done)
 ```
 
 ## 開発
@@ -110,17 +153,21 @@ make lint
 make test
 ```
 
-## 設定
+## トラブルシューティング
 
-### 環境変数
+### Firebaseに接続できない
+- 環境変数が正しく設定されているか確認
+- サービスアカウントキーのパスが絶対パスか確認
+- Firebaseプロジェクトでアクセス権限があるか確認
 
-- `FIREBASE_PROJECT_ID`: Firebase プロジェクトID（必須）
+### .envファイルが読み込まれない
+- memoyaを実行するディレクトリに.envファイルがあるか確認
+- ファイルの権限を確認 (`chmod 600 .env`)
 
-### Firebase設定
-
-1. [Firebase Console](https://console.firebase.google.com/) でプロジェクトを作成
-2. Firestoreを有効化
-3. サービスアカウントキーを生成して適切に設定
+### Claude Desktopで使えない
+- claude_desktop_config.jsonの構文エラーがないか確認
+- memoyaコマンドがPATHに含まれているか確認 (`which memoya`)
+- Claude Desktopを完全に再起動（タスクトレイからも終了）
 
 ## ライセンス
 
@@ -130,10 +177,13 @@ MIT License
 
 プルリクエストや Issue の作成を歓迎します。
 
-## TODO
+## 今後の改善予定
 
-- [ ] インメモリストレージの実装（開発用）
-- [ ] より詳細な検索機能
-- [ ] バルク操作のサポート
-- [ ] テストケースの追加
-- [ ] パフォーマンスの最適化
+- Cloud Functions化によるセットアップの簡略化
+- インメモリストレージの実装（開発用）
+- より詳細な検索機能
+- バルク操作のサポート
+- テストケースの追加
+- パフォーマンスの最適化
+
+詳細は[TODO.md](./TODO.md)を参照してください。

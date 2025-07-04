@@ -12,3 +12,11 @@ memoya
 # OS files
 .DS_Store
 Thumbs.db
+*:Zone.Identifier
+
+# Test coverage
+coverage.html
+coverage.out
+
+# Generated code (can be regenerated)
+internal/generated/

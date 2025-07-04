@@ -2,10 +2,11 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -14,25 +15,35 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	generatedServer "github.com/pankona/memoya/internal/generated/server"
+	"github.com/pankona/memoya/internal/logging"
+	rateLimitMiddleware "github.com/pankona/memoya/internal/middleware"
 	"github.com/pankona/memoya/internal/server"
 	"github.com/pankona/memoya/internal/storage"
 )
 
 func main() {
+	// Initialize structured logging
+	logger := logging.NewLoggerFromEnv()
+	logging.SetDefault(logger)
+
 	// Initialize context
 	ctx := context.Background()
 
 	// Initialize Firestore storage
 	projectID := os.Getenv("PROJECT_ID")
 	if projectID == "" {
-		log.Fatal("PROJECT_ID environment variable is required")
+		logger.Error("PROJECT_ID environment variable is required")
+		os.Exit(1)
 	}
 
 	storage, err := storage.NewFirestoreStorage(ctx, projectID)
 	if err != nil {
-		log.Fatalf("Failed to initialize Firestore: %v", err)
+		logger.Error("Failed to initialize Firestore", slog.Any("error", err), slog.String("project_id", projectID))
+		os.Exit(1)
 	}
 	defer storage.Close()
+
+	logger.Info("Firestore storage initialized", slog.String("project_id", projectID))
 
 	// Create server implementation
 	serverImpl := server.NewServer(ctx, storage)
@@ -40,10 +51,27 @@ func main() {
 	// Create router
 	r := chi.NewRouter()
 
+	// Rate limiting configuration
+	rateLimitRequests := 100 // default: 100 requests per minute
+	rateLimitWindow := time.Minute
+
+	if rateLimit := os.Getenv("RATE_LIMIT_REQUESTS"); rateLimit != "" {
+		if parsed, err := strconv.Atoi(rateLimit); err == nil && parsed > 0 {
+			rateLimitRequests = parsed
+		}
+	}
+
+	if window := os.Getenv("RATE_LIMIT_WINDOW"); window != "" {
+		if parsed, err := time.ParseDuration(window); err == nil && parsed > 0 {
+			rateLimitWindow = parsed
+		}
+	}
+
 	// Middleware
-	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
+	r.Use(rateLimitMiddleware.StructuredLoggingMiddleware(logger))
+	r.Use(middleware.Recoverer)
+	r.Use(rateLimitMiddleware.RateLimitMiddleware(rateLimitRequests, rateLimitWindow))
 	r.Use(middleware.Timeout(60 * time.Second))
 
 	// CORS configuration
@@ -89,9 +117,13 @@ func main() {
 
 	// Start server in a goroutine
 	go func() {
-		log.Printf("Starting server on port %s", port)
+		logger.Info("Starting HTTP server",
+			slog.String("port", port),
+			slog.String("address", srv.Addr),
+		)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Failed to start server: %v", err)
+			logger.Error("Failed to start server", slog.Any("error", err))
+			os.Exit(1)
 		}
 	}()
 
@@ -99,16 +131,17 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	log.Println("Shutting down server...")
+	logger.Info("Shutdown signal received, starting graceful shutdown...")
 
 	// Create a deadline for shutdown
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	// Shutdown server
-	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatal("Server forced to shutdown:", err)
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		logger.Error("Server forced to shutdown", slog.Any("error", err))
+		os.Exit(1)
 	}
 
-	log.Println("Server exited")
+	logger.Info("Server shutdown completed successfully")
 }

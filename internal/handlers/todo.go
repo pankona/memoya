@@ -11,20 +11,25 @@ import (
 	"github.com/pankona/memoya/internal/auth"
 	"github.com/pankona/memoya/internal/models"
 	"github.com/pankona/memoya/internal/storage"
+	"github.com/pankona/memoya/internal/validation"
 )
 
 type TodoHandler struct {
-	storage storage.Storage
+	storage   storage.Storage
+	validator *validation.TodoValidator
 }
 
 func NewTodoHandler() *TodoHandler {
 	// TODO: Initialize with actual storage
-	return &TodoHandler{}
+	return &TodoHandler{
+		validator: validation.NewTodoValidator(),
+	}
 }
 
 func NewTodoHandlerWithStorage(storage storage.Storage) *TodoHandler {
 	return &TodoHandler{
-		storage: storage,
+		storage:   storage,
+		validator: validation.NewTodoValidator(),
 	}
 }
 
@@ -54,29 +59,36 @@ func (h *TodoHandler) Create(ctx context.Context, ss *mcp.ServerSession, params 
 		return nil, fmt.Errorf("authentication required: %w", err)
 	}
 
+	// Set defaults
+	status := models.StatusBacklog
+	if args.Status != "" {
+		status = models.TodoStatus(args.Status)
+	}
+
+	priority := models.PriorityNormal
+	if args.Priority != "" {
+		priority = models.TodoPriority(args.Priority)
+	}
+
+	// Validate input
+	if err := h.validator.ValidateCreate(args.Title, args.Description, status, priority, args.Tags); err != nil {
+		return nil, fmt.Errorf("validation failed: %w", err)
+	}
+
+	// Sanitize input
+	title, description, tags := validation.SanitizeTodoInput(args.Title, args.Description, args.Tags)
+
 	todo := &models.Todo{
 		ID:           uuid.New().String(),
 		UserID:       userID,
-		Title:        args.Title,
-		Description:  args.Description,
-		Tags:         args.Tags,
+		Title:        title,
+		Description:  description,
+		Status:       status,
+		Priority:     priority,
+		Tags:         tags,
 		ParentID:     args.ParentID,
 		CreatedAt:    time.Now(),
 		LastModified: time.Now(),
-	}
-
-	// Set status with default
-	if args.Status != "" {
-		todo.Status = models.TodoStatus(args.Status)
-	} else {
-		todo.Status = models.StatusBacklog
-	}
-
-	// Set priority with default
-	if args.Priority != "" {
-		todo.Priority = models.TodoPriority(args.Priority)
-	} else {
-		todo.Priority = models.PriorityNormal
 	}
 
 	// Save to storage

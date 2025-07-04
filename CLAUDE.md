@@ -452,17 +452,88 @@ gcloud run deploy memoya-server --image memoya-server
 - アイドル時0コスト
 - 従量制スケーリング
 
+## マイグレーション戦略
+
+### データ移行の概要
+
+既存のレガシーデータ（ユーザー分離前のデータ）を新しいユーザー分離構造に移行するための包括的なマイグレーション機能を実装済み。
+
+#### 移行対象データ構造
+
+**レガシー構造:**
+```
+/memos/{memoId}     # 直接配置
+/todos/{todoId}     # 直接配置
+```
+
+**新構造:**
+```
+/users/{userId}/memos/{memoId}  # ユーザー分離
+/users/{userId}/todos/{todoId}  # ユーザー分離
+```
+
+### マイグレーション機能
+
+#### 1. MigrationService実装
+- **CheckMigrationStatus**: レガシーデータの存在確認
+- **PerformMigration**: 自動データ移行実行
+- **CleanupLegacyCollections**: 移行後のクリーンアップ
+
+#### 2. MigrationHandler（MCPツール）
+- **migration_status**: 移行状況の確認
+- **perform_migration**: 移行の実行
+- **cleanup_migration**: レガシーデータの削除
+
+#### 3. 移行プロセス
+
+1. **事前チェック**
+   - レガシーデータ数の確認
+   - 既存移行状況の確認
+
+2. **デフォルトユーザー作成**
+   - 移行用ユーザーの作成または取得
+   - Google IDによる既存ユーザー検索
+
+3. **バッチ移行**
+   - 500件ずつバッチ処理
+   - 原子的操作（作成→削除）
+   - 進捗追跡とエラーハンドリング
+
+4. **整合性確認**
+   - 移行完了の検証
+   - データ整合性チェック
+
+#### 4. 安全機能
+
+- **明示的確認**: 移行・削除操作は`confirm: true`が必須
+- **ロールバック不可**: 移行は一方向のみ（安全確保）
+- **エラー追跡**: 詳細なエラーログとステータス保存
+- **進捗表示**: リアルタイム移行進捗の確認
+
+#### 5. 使用例
+
+```bash
+# 1. 移行状況確認
+mcp call migration_status
+
+# 2. 移行実行
+mcp call perform_migration '{"default_user_google_id":"user@example.com","confirm":true}'
+
+# 3. クリーンアップ（オプション）
+mcp call cleanup_migration '{"confirm":true}'
+```
+
 ### 今後の拡張予定
 
 #### 近期実装
 - **Web UI**: SPA + REST API
-- **認証強化**: Google OAuth 2.0
 - **CI/CD**: GitHub Actions
+- **監視機能**: Cloud Monitoring統合
 
 #### 中期実装
-- **マルチユーザー**: ユーザー分離
 - **リアルタイム**: WebSocket
 - **分析機能**: 使用統計
+- **バックアップ**: 自動データバックアップ
 
 #### 長期実装
 - **プラグイン**: 拡張アーキテクチャ

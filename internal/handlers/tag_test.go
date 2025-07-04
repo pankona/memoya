@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/pankona/memoya/internal/auth"
 )
 
 func TestTagHandler_List(t *testing.T) {
@@ -19,7 +20,9 @@ func TestTagHandler_List(t *testing.T) {
 		Arguments: args,
 	}
 
-	result, err := handler.List(context.Background(), nil, params)
+	// Create context with test user ID
+	ctx := context.WithValue(context.Background(), auth.UserIDKey, "test-user-1")
+	result, err := handler.List(ctx, nil, params)
 
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
@@ -85,7 +88,9 @@ func TestTagHandler_ListEmpty(t *testing.T) {
 		Arguments: args,
 	}
 
-	result, err := handler.List(context.Background(), nil, params)
+	// Create context with test user ID
+	ctx := context.WithValue(context.Background(), auth.UserIDKey, "test-user-1")
+	result, err := handler.List(ctx, nil, params)
 
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
@@ -135,7 +140,9 @@ func TestTagHandler_ListUniqueTags(t *testing.T) {
 		Arguments: args,
 	}
 
-	result, err := handler.List(context.Background(), nil, params)
+	// Create context with test user ID
+	ctx := context.WithValue(context.Background(), auth.UserIDKey, "test-user-1")
+	result, err := handler.List(ctx, nil, params)
 
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
@@ -165,7 +172,9 @@ func TestTagHandler_ListConsistentCount(t *testing.T) {
 		Arguments: args,
 	}
 
-	result, err := handler.List(context.Background(), nil, params)
+	// Create context with test user ID
+	ctx := context.WithValue(context.Background(), auth.UserIDKey, "test-user-1")
+	result, err := handler.List(ctx, nil, params)
 
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)

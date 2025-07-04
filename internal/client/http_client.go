@@ -34,16 +34,46 @@ func (c *HTTPClient) SetAuthToken(token string) {
 
 // CallTool makes an HTTP POST request to the specified MCP tool endpoint
 func (c *HTTPClient) CallTool(ctx context.Context, toolName string, args interface{}) ([]byte, error) {
-	url := fmt.Sprintf("%s/mcp/%s", c.baseURL, toolName)
+	// Determine URL based on tool type
+	var url string
+	switch toolName {
+	case "device_auth_start":
+		url = fmt.Sprintf("%s/auth/device_start", c.baseURL)
+	case "device_auth_poll":
+		url = fmt.Sprintf("%s/auth/device_poll", c.baseURL)
+	case "user_info":
+		url = fmt.Sprintf("%s/auth/user", c.baseURL)
+		// Use GET for user info
+		return c.makeRequest(ctx, "GET", url, nil)
+	case "delete_account":
+		url = fmt.Sprintf("%s/auth/delete_account", c.baseURL)
+	default:
+		url = fmt.Sprintf("%s/mcp/%s", c.baseURL, toolName)
+	}
 
-	// Marshal arguments to JSON
-	jsonData, err := json.Marshal(args)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal arguments: %w", err)
+	return c.makeRequest(ctx, "POST", url, args)
+}
+
+// makeRequest is a helper method for making HTTP requests
+func (c *HTTPClient) makeRequest(ctx context.Context, method, url string, args interface{}) ([]byte, error) {
+	var jsonData []byte
+	var err error
+
+	// Marshal arguments to JSON if provided
+	if args != nil {
+		jsonData, err = json.Marshal(args)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal arguments: %w", err)
+		}
 	}
 
 	// Create HTTP request
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
+	var req *http.Request
+	if len(jsonData) > 0 {
+		req, err = http.NewRequestWithContext(ctx, method, url, bytes.NewBuffer(jsonData))
+	} else {
+		req, err = http.NewRequestWithContext(ctx, method, url, nil)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}

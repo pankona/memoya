@@ -2,11 +2,13 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/pankona/memoya/internal/auth"
 	"github.com/pankona/memoya/internal/handlers"
 )
 
@@ -69,6 +71,9 @@ func TestServer_CreateMemo(t *testing.T) {
 		t.Fatal(err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	// Add authentication context
+	ctx := context.WithValue(req.Context(), auth.UserIDKey, "test-user-1")
+	req = req.WithContext(ctx)
 
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(server.CreateMemo)
@@ -122,6 +127,9 @@ func TestServer_CreateMemo_InvalidJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	// Add authentication context
+	ctx := context.WithValue(req.Context(), auth.UserIDKey, "test-user-1")
+	req = req.WithContext(ctx)
 
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(server.CreateMemo)
@@ -157,6 +165,9 @@ func TestServer_ListMemos(t *testing.T) {
 		t.Fatal(err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	// Add authentication context
+	ctx := context.WithValue(req.Context(), auth.UserIDKey, "test-user-1")
+	req = req.WithContext(ctx)
 
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(server.ListMemos)
@@ -203,6 +214,9 @@ func TestServer_ListMemos_WithTagFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	// Add authentication context
+	ctx := context.WithValue(req.Context(), auth.UserIDKey, "test-user-1")
+	req = req.WithContext(ctx)
 
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(server.ListMemos)
@@ -260,6 +274,9 @@ func TestServer_CreateTodo(t *testing.T) {
 		t.Fatal(err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	// Add authentication context
+	ctx := context.WithValue(req.Context(), auth.UserIDKey, "test-user-1")
+	req = req.WithContext(ctx)
 
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(server.CreateTodo)
@@ -312,6 +329,9 @@ func TestServer_ListTodos(t *testing.T) {
 		t.Fatal(err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	// Add authentication context
+	ctx := context.WithValue(req.Context(), auth.UserIDKey, "test-user-1")
+	req = req.WithContext(ctx)
 
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(server.ListTodos)
@@ -359,6 +379,9 @@ func TestServer_Search(t *testing.T) {
 		t.Fatal(err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	// Add authentication context
+	ctx := context.WithValue(req.Context(), auth.UserIDKey, "test-user-1")
+	req = req.WithContext(ctx)
 
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(server.Search)
@@ -399,6 +422,9 @@ func TestServer_ListTags(t *testing.T) {
 		t.Fatal(err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	// Add authentication context
+	ctx := context.WithValue(req.Context(), auth.UserIDKey, "test-user-1")
+	req = req.WithContext(ctx)
 
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(server.ListTags)
@@ -449,6 +475,9 @@ func TestServer_UpdateMemo(t *testing.T) {
 		t.Fatal(err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	// Add authentication context
+	ctx := context.WithValue(req.Context(), auth.UserIDKey, "test-user-1")
+	req = req.WithContext(ctx)
 
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(server.UpdateMemo)
@@ -501,6 +530,9 @@ func TestServer_DeleteMemo(t *testing.T) {
 		t.Fatal(err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	// Add authentication context
+	ctx := context.WithValue(req.Context(), auth.UserIDKey, "test-user-1")
+	req = req.WithContext(ctx)
 
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(server.DeleteMemo)
@@ -524,5 +556,103 @@ func TestServer_DeleteMemo(t *testing.T) {
 
 	if response.Message == "" {
 		t.Errorf("Expected message field to be present")
+	}
+}
+
+func TestServer_GetUserInfo(t *testing.T) {
+	// Mock storage setup with test data
+	mockStorage := handlers.NewMockStorage()
+	mockStorage.SetupTestData()
+	server := NewServer(mockStorage)
+
+	req, err := http.NewRequest("GET", "/auth/user", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	// Add authentication context
+	ctx := context.WithValue(req.Context(), auth.UserIDKey, "test-user-1")
+	req = req.WithContext(ctx)
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(server.GetUserInfo)
+	handler.ServeHTTP(rr, req)
+
+	// Check status code
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+	}
+
+	// Parse response
+	var response handlers.UserInfoResult
+	if err := json.Unmarshal(rr.Body.Bytes(), &response); err != nil {
+		t.Errorf("Could not parse response JSON: %v", err)
+	}
+
+	// Validate response structure
+	if !response.Success {
+		t.Errorf("Expected success=true, got %v", response.Success)
+	}
+
+	if response.User == nil {
+		t.Error("Expected user field to be present")
+	}
+
+	if response.User.ID != "test-user-1" {
+		t.Errorf("Expected user ID %s, got %s", "test-user-1", response.User.ID)
+	}
+}
+
+func TestServer_DeleteAccount(t *testing.T) {
+	// Mock storage setup with test data
+	mockStorage := handlers.NewMockStorage()
+	mockStorage.SetupTestData()
+	server := NewServer(mockStorage)
+
+	// Verify initial data exists
+	if len(mockStorage.GetUsers()) == 0 {
+		t.Fatal("Expected test user to exist")
+	}
+
+	reqBody := map[string]interface{}{
+		"confirm": true,
+	}
+	reqJSON, _ := json.Marshal(reqBody)
+	req, err := http.NewRequest("POST", "/auth/delete_account", bytes.NewBuffer(reqJSON))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	// Add authentication context
+	ctx := context.WithValue(req.Context(), auth.UserIDKey, "test-user-1")
+	req = req.WithContext(ctx)
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(server.DeleteAccount)
+	handler.ServeHTTP(rr, req)
+
+	// Check status code
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+	}
+
+	// Parse response
+	var response handlers.AccountDeleteResult
+	if err := json.Unmarshal(rr.Body.Bytes(), &response); err != nil {
+		t.Errorf("Could not parse response JSON: %v", err)
+	}
+
+	// Validate response structure
+	if !response.Success {
+		t.Errorf("Expected success=true, got %v", response.Success)
+	}
+
+	if response.Message == "" {
+		t.Error("Expected message field to be present")
+	}
+
+	// Verify user was deleted
+	if len(mockStorage.GetUsers()) != 0 {
+		t.Error("Expected user to be deleted")
 	}
 }

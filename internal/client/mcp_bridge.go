@@ -177,3 +177,65 @@ func (b *MCPBridge) TagList(ctx context.Context, ss *mcp.ServerSession,
 		},
 	}, nil
 }
+
+// Authentication operations
+
+func (b *MCPBridge) DeviceAuthStart(ctx context.Context, ss *mcp.ServerSession,
+	params *mcp.CallToolParamsFor[handlers.DeviceAuthStartArgs]) (*mcp.CallToolResultFor[handlers.DeviceAuthStartResult], error) {
+
+	respData, err := b.httpClient.CallTool(ctx, "device_auth_start", params.Arguments)
+	if err != nil {
+		return nil, fmt.Errorf("device_auth_start failed: %w", err)
+	}
+
+	return &mcp.CallToolResultFor[handlers.DeviceAuthStartResult]{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: string(respData)},
+		},
+	}, nil
+}
+
+func (b *MCPBridge) DeviceAuthPoll(ctx context.Context, ss *mcp.ServerSession,
+	params *mcp.CallToolParamsFor[handlers.DeviceAuthPollArgs]) (*mcp.CallToolResultFor[handlers.DeviceAuthPollResult], error) {
+
+	respData, err := b.httpClient.CallTool(ctx, "device_auth_poll", params.Arguments)
+	if err != nil {
+		return nil, fmt.Errorf("device_auth_poll failed: %w", err)
+	}
+
+	return &mcp.CallToolResultFor[handlers.DeviceAuthPollResult]{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: string(respData)},
+		},
+	}, nil
+}
+
+func (b *MCPBridge) GetUserInfo(ctx context.Context, ss *mcp.ServerSession,
+	params *mcp.CallToolParamsFor[handlers.UserInfoArgs]) (*mcp.CallToolResultFor[handlers.UserInfoResult], error) {
+
+	respData, err := b.httpClient.CallTool(ctx, "user_info", params.Arguments)
+	if err != nil {
+		return nil, fmt.Errorf("user_info failed: %w", err)
+	}
+
+	return &mcp.CallToolResultFor[handlers.UserInfoResult]{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: string(respData)},
+		},
+	}, nil
+}
+
+func (b *MCPBridge) DeleteAccount(ctx context.Context, ss *mcp.ServerSession,
+	params *mcp.CallToolParamsFor[handlers.AccountDeleteArgs]) (*mcp.CallToolResultFor[handlers.AccountDeleteResult], error) {
+
+	respData, err := b.httpClient.CallTool(ctx, "delete_account", params.Arguments)
+	if err != nil {
+		return nil, fmt.Errorf("delete_account failed: %w", err)
+	}
+
+	return &mcp.CallToolResultFor[handlers.AccountDeleteResult]{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: string(respData)},
+		},
+	}, nil
+}

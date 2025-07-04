@@ -48,6 +48,8 @@ paths:
       operationId: createMemo
       tags:
         - Memo
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -63,6 +65,8 @@ paths:
                 $ref: '#/components/schemas/MemoCreateResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -72,6 +76,8 @@ paths:
       operationId: listMemos
       tags:
         - Memo
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -87,6 +93,8 @@ paths:
                 $ref: '#/components/schemas/MemoListResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -96,6 +104,8 @@ paths:
       operationId: updateMemo
       tags:
         - Memo
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -111,6 +121,8 @@ paths:
                 $ref: '#/components/schemas/MemoUpdateResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -122,6 +134,8 @@ paths:
       operationId: deleteMemo
       tags:
         - Memo
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -137,6 +151,8 @@ paths:
                 $ref: '#/components/schemas/MemoDeleteResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -148,6 +164,8 @@ paths:
       operationId: createTodo
       tags:
         - Todo
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -163,6 +181,8 @@ paths:
                 $ref: '#/components/schemas/TodoCreateResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -172,6 +192,8 @@ paths:
       operationId: listTodos
       tags:
         - Todo
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -187,6 +209,8 @@ paths:
                 $ref: '#/components/schemas/TodoListResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -196,6 +220,8 @@ paths:
       operationId: updateTodo
       tags:
         - Todo
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -211,6 +237,8 @@ paths:
                 $ref: '#/components/schemas/TodoUpdateResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -222,6 +250,8 @@ paths:
       operationId: deleteTodo
       tags:
         - Todo
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -237,6 +267,8 @@ paths:
                 $ref: '#/components/schemas/TodoDeleteResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -248,6 +280,8 @@ paths:
       operationId: search
       tags:
         - Search
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -260,9 +294,11 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SearchResponse'
+                $ref: '#/components/schemas/SearchResult'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -272,6 +308,8 @@ paths:
       operationId: listTags
       tags:
         - Tag
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -287,10 +325,115 @@ paths:
                 $ref: '#/components/schemas/TagListResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Authentication Endpoints
+  /auth/device_start:
+    post:
+      summary: Start device authentication flow
+      operationId: startDeviceAuth
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceAuthStartRequest'
+      responses:
+        '200':
+          description: Device authentication started successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceAuthStartResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /auth/device_poll:
+    post:
+      summary: Poll for device authentication completion
+      operationId: pollDeviceAuth
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceAuthPollRequest'
+      responses:
+        '200':
+          description: Authentication status retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceAuthPollResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /auth/user:
+    get:
+      summary: Get current user information
+      operationId: getUserInfo
+      tags:
+        - Authentication
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User information retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserInfoResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /auth/delete_account:
+    post:
+      summary: Delete user account and all associated data
+      operationId: deleteAccount
+      tags:
+        - Authentication
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountDeleteRequest'
+      responses:
+        '200':
+          description: Account deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountDeleteResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from device authentication flow
   schemas:
     # Memo Schemas
     MemoCreateRequest:
@@ -662,7 +805,7 @@ components:
           description: Filter by type
           example: "all"
 
-    SearchResponse:
+    SearchResult:
       type: object
       properties:
         success:
@@ -715,6 +858,126 @@ components:
           type: string
           example: "Found 4 unique tags"
 
+    # Authentication Schemas
+    DeviceAuthStartRequest:
+      type: object
+      properties:
+        client_id:
+          type: string
+          description: OAuth client ID
+          example: "memoya-client"
+
+    DeviceAuthStartResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            device_code:
+              type: string
+              description: Device code for polling
+              example: "ABCD-1234"
+            user_code:
+              type: string
+              description: User code to enter on verification URL
+              example: "WXYZ-5678"
+            verification_uri:
+              type: string
+              description: URL where user enters the code
+              example: "https://accounts.google.com/device"
+            verification_uri_complete:
+              type: string
+              description: Complete verification URL with code
+              example: "https://accounts.google.com/device?user_code=WXYZ-5678"
+            expires_in:
+              type: integer
+              description: Device code expiration time in seconds
+              example: 1800
+            interval:
+              type: integer
+              description: Polling interval in seconds
+              example: 5
+        message:
+          type: string
+          example: "Device authorization started"
+
+    DeviceAuthPollRequest:
+      type: object
+      required:
+        - device_code
+      properties:
+        device_code:
+          type: string
+          description: Device code from start request
+          example: "ABCD-1234"
+
+    DeviceAuthPollResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            access_token:
+              type: string
+              description: JWT access token (only when authenticated)
+              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            status:
+              type: string
+              enum: ["pending", "completed", "expired", "denied"]
+              description: Authentication status
+              example: "pending"
+        message:
+          type: string
+          example: "Authentication pending"
+
+    UserInfoResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              description: User ID
+              example: "user-123"
+            created_at:
+              type: string
+              format: date-time
+              example: "2024-01-01T10:00:00Z"
+            is_active:
+              type: boolean
+              example: true
+        message:
+          type: string
+          example: "User information retrieved"
+
+    AccountDeleteRequest:
+      type: object
+      properties:
+        confirm:
+          type: boolean
+          description: Confirmation flag for deletion
+          example: true
+
+    AccountDeleteResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Account and all data deleted successfully"
+
     # Error Schemas
     Error:
       type: object
@@ -765,19 +1028,22 @@ components:
             error: "Internal server error"
             code: "INTERNAL_ERROR"
 
-  securitySchemes:
-    BearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-      description: JWT token for authentication
-
-security:
-  - BearerAuth: []
+    Unauthorized:
+      description: Unauthorized - invalid or missing authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error: "Authentication required"
+            code: "UNAUTHORIZED"
 
 tags:
   - name: Health
     description: Health check operations
+  - name: Authentication
+    description: User authentication and account management
   - name: Memo
     description: Memo management operations
   - name: Todo

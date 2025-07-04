@@ -20,7 +20,15 @@ import (
 )
 
 const (
-	BearerAuthScopes = "BearerAuth.Scopes"
+	BearerAuthScopes = "bearerAuth.Scopes"
+)
+
+// Defines values for DeviceAuthPollResponseDataStatus.
+const (
+	Completed DeviceAuthPollResponseDataStatus = "completed"
+	Denied    DeviceAuthPollResponseDataStatus = "denied"
+	Expired   DeviceAuthPollResponseDataStatus = "expired"
+	Pending   DeviceAuthPollResponseDataStatus = "pending"
 )
 
 // Defines values for SearchRequestType.
@@ -85,6 +93,71 @@ const (
 	TodoUpdateRequestStatusInProgress TodoUpdateRequestStatus = "in_progress"
 	TodoUpdateRequestStatusTodo       TodoUpdateRequestStatus = "todo"
 )
+
+// AccountDeleteRequest defines model for AccountDeleteRequest.
+type AccountDeleteRequest struct {
+	// Confirm Confirmation flag for deletion
+	Confirm *bool `json:"confirm,omitempty"`
+}
+
+// AccountDeleteResponse defines model for AccountDeleteResponse.
+type AccountDeleteResponse struct {
+	Message *string `json:"message,omitempty"`
+	Success *bool   `json:"success,omitempty"`
+}
+
+// DeviceAuthPollRequest defines model for DeviceAuthPollRequest.
+type DeviceAuthPollRequest struct {
+	// DeviceCode Device code from start request
+	DeviceCode string `json:"device_code"`
+}
+
+// DeviceAuthPollResponse defines model for DeviceAuthPollResponse.
+type DeviceAuthPollResponse struct {
+	Data *struct {
+		// AccessToken JWT access token (only when authenticated)
+		AccessToken *string `json:"access_token,omitempty"`
+
+		// Status Authentication status
+		Status *DeviceAuthPollResponseDataStatus `json:"status,omitempty"`
+	} `json:"data,omitempty"`
+	Message *string `json:"message,omitempty"`
+	Success *bool   `json:"success,omitempty"`
+}
+
+// DeviceAuthPollResponseDataStatus Authentication status
+type DeviceAuthPollResponseDataStatus string
+
+// DeviceAuthStartRequest defines model for DeviceAuthStartRequest.
+type DeviceAuthStartRequest struct {
+	// ClientId OAuth client ID
+	ClientId *string `json:"client_id,omitempty"`
+}
+
+// DeviceAuthStartResponse defines model for DeviceAuthStartResponse.
+type DeviceAuthStartResponse struct {
+	Data *struct {
+		// DeviceCode Device code for polling
+		DeviceCode *string `json:"device_code,omitempty"`
+
+		// ExpiresIn Device code expiration time in seconds
+		ExpiresIn *int `json:"expires_in,omitempty"`
+
+		// Interval Polling interval in seconds
+		Interval *int `json:"interval,omitempty"`
+
+		// UserCode User code to enter on verification URL
+		UserCode *string `json:"user_code,omitempty"`
+
+		// VerificationUri URL where user enters the code
+		VerificationUri *string `json:"verification_uri,omitempty"`
+
+		// VerificationUriComplete Complete verification URL with code
+		VerificationUriComplete *string `json:"verification_uri_complete,omitempty"`
+	} `json:"data,omitempty"`
+	Message *string `json:"message,omitempty"`
+	Success *bool   `json:"success,omitempty"`
+}
 
 // Error defines model for Error.
 type Error struct {
@@ -195,8 +268,8 @@ type SearchRequest struct {
 // SearchRequestType Filter by type
 type SearchRequestType string
 
-// SearchResponse defines model for SearchResponse.
-type SearchResponse struct {
+// SearchResult defines model for SearchResult.
+type SearchResult struct {
 	Message *string        `json:"message,omitempty"`
 	Query   *string        `json:"query,omitempty"`
 	Results *SearchResults `json:"results,omitempty"`
@@ -346,6 +419,19 @@ type TodoUpdateResponse struct {
 	Success *bool   `json:"success,omitempty"`
 }
 
+// UserInfoResponse defines model for UserInfoResponse.
+type UserInfoResponse struct {
+	Data *struct {
+		CreatedAt *time.Time `json:"created_at,omitempty"`
+
+		// Id User ID
+		Id       *string `json:"id,omitempty"`
+		IsActive *bool   `json:"is_active,omitempty"`
+	} `json:"data,omitempty"`
+	Message *string `json:"message,omitempty"`
+	Success *bool   `json:"success,omitempty"`
+}
+
 // BadRequest defines model for BadRequest.
 type BadRequest = Error
 
@@ -354,6 +440,18 @@ type InternalServerError = Error
 
 // NotFound defines model for NotFound.
 type NotFound = Error
+
+// Unauthorized defines model for Unauthorized.
+type Unauthorized = Error
+
+// DeleteAccountJSONRequestBody defines body for DeleteAccount for application/json ContentType.
+type DeleteAccountJSONRequestBody = AccountDeleteRequest
+
+// PollDeviceAuthJSONRequestBody defines body for PollDeviceAuth for application/json ContentType.
+type PollDeviceAuthJSONRequestBody = DeviceAuthPollRequest
+
+// StartDeviceAuthJSONRequestBody defines body for StartDeviceAuth for application/json ContentType.
+type StartDeviceAuthJSONRequestBody = DeviceAuthStartRequest
 
 // CreateMemoJSONRequestBody defines body for CreateMemo for application/json ContentType.
 type CreateMemoJSONRequestBody = MemoCreateRequest
@@ -387,6 +485,18 @@ type UpdateTodoJSONRequestBody = TodoUpdateRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// Delete user account and all associated data
+	// (POST /auth/delete_account)
+	DeleteAccount(w http.ResponseWriter, r *http.Request)
+	// Poll for device authentication completion
+	// (POST /auth/device_poll)
+	PollDeviceAuth(w http.ResponseWriter, r *http.Request)
+	// Start device authentication flow
+	// (POST /auth/device_start)
+	StartDeviceAuth(w http.ResponseWriter, r *http.Request)
+	// Get current user information
+	// (GET /auth/user)
+	GetUserInfo(w http.ResponseWriter, r *http.Request)
 	// Health check endpoint
 	// (GET /health)
 	HealthCheck(w http.ResponseWriter, r *http.Request)
@@ -425,6 +535,30 @@ type ServerInterface interface {
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
 
 type Unimplemented struct{}
+
+// Delete user account and all associated data
+// (POST /auth/delete_account)
+func (_ Unimplemented) DeleteAccount(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Poll for device authentication completion
+// (POST /auth/device_poll)
+func (_ Unimplemented) PollDeviceAuth(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Start device authentication flow
+// (POST /auth/device_start)
+func (_ Unimplemented) StartDeviceAuth(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get current user information
+// (GET /auth/user)
+func (_ Unimplemented) GetUserInfo(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
 
 // Health check endpoint
 // (GET /health)
@@ -501,14 +635,76 @@ type ServerInterfaceWrapper struct {
 
 type MiddlewareFunc func(http.Handler) http.Handler
 
-// HealthCheck operation middleware
-func (siw *ServerInterfaceWrapper) HealthCheck(w http.ResponseWriter, r *http.Request) {
+// DeleteAccount operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAccount(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
 	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
 
 	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteAccount(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PollDeviceAuth operation middleware
+func (siw *ServerInterfaceWrapper) PollDeviceAuth(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PollDeviceAuth(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// StartDeviceAuth operation middleware
+func (siw *ServerInterfaceWrapper) StartDeviceAuth(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.StartDeviceAuth(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetUserInfo operation middleware
+func (siw *ServerInterfaceWrapper) GetUserInfo(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetUserInfo(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// HealthCheck operation middleware
+func (siw *ServerInterfaceWrapper) HealthCheck(w http.ResponseWriter, r *http.Request) {
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.HealthCheck(w, r)
@@ -835,6 +1031,18 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	}
 
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/auth/delete_account", wrapper.DeleteAccount)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/auth/device_poll", wrapper.PollDeviceAuth)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/auth/device_start", wrapper.StartDeviceAuth)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/auth/user", wrapper.GetUserInfo)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/health", wrapper.HealthCheck)
 	})
 	r.Group(func(r chi.Router) {
@@ -874,45 +1082,58 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

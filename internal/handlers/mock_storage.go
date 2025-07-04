@@ -10,10 +10,10 @@ import (
 )
 
 type MockStorage struct {
-	todos               map[string]*models.Todo
-	memos               map[string]*models.Memo
-	users               map[string]*models.User
-	deviceAuthSessions  map[string]*models.DeviceAuthSession
+	todos              map[string]*models.Todo
+	memos              map[string]*models.Memo
+	users              map[string]*models.User
+	deviceAuthSessions map[string]*models.DeviceAuthSession
 }
 
 func NewMockStorage() *MockStorage {
@@ -270,6 +270,15 @@ func containsInMiddle(s, substr string) bool {
 func (m *MockStorage) SetupTestData() {
 	now := time.Now()
 
+	// Create test user
+	testUser := &models.User{
+		ID:        "test-user-1",
+		GoogleID:  "google-test-123",
+		CreatedAt: now,
+		IsActive:  true,
+	}
+	m.users[testUser.ID] = testUser
+
 	todo1 := &models.Todo{
 		ID:           "test-todo-1",
 		UserID:       "test-user-1",
@@ -357,6 +366,22 @@ func (m *MockStorage) DeleteUser(ctx context.Context, id string) error {
 	if _, exists := m.users[id]; !exists {
 		return fmt.Errorf("user not found")
 	}
+
+	// Delete all user's memos
+	for memoID, memo := range m.memos {
+		if memo.UserID == id {
+			delete(m.memos, memoID)
+		}
+	}
+
+	// Delete all user's todos
+	for todoID, todo := range m.todos {
+		if todo.UserID == id {
+			delete(m.todos, todoID)
+		}
+	}
+
+	// Delete user record
 	delete(m.users, id)
 	return nil
 }
@@ -389,4 +414,17 @@ func (m *MockStorage) DeleteDeviceAuthSession(ctx context.Context, deviceCode st
 	}
 	delete(m.deviceAuthSessions, deviceCode)
 	return nil
+}
+
+// Helper methods for testing
+func (m *MockStorage) GetUsers() map[string]*models.User {
+	return m.users
+}
+
+func (m *MockStorage) GetMemos() map[string]*models.Memo {
+	return m.memos
+}
+
+func (m *MockStorage) GetTodos() map[string]*models.Todo {
+	return m.todos
 }

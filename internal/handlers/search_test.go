@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/pankona/memoya/internal/auth"
 )
 
 func TestSearchHandler_Search(t *testing.T) {
@@ -23,7 +24,9 @@ func TestSearchHandler_Search(t *testing.T) {
 		Arguments: args,
 	}
 
-	result, err := handler.Search(context.Background(), nil, params)
+	// Create context with test user ID
+	ctx := context.WithValue(context.Background(), auth.UserIDKey, "test-user-1")
+	result, err := handler.Search(ctx, nil, params)
 
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
@@ -85,7 +88,9 @@ func TestSearchHandler_SearchTodosOnly(t *testing.T) {
 		Arguments: args,
 	}
 
-	result, err := handler.Search(context.Background(), nil, params)
+	// Create context with test user ID
+	ctx := context.WithValue(context.Background(), auth.UserIDKey, "test-user-1")
+	result, err := handler.Search(ctx, nil, params)
 
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
@@ -119,7 +124,9 @@ func TestSearchHandler_SearchMemosOnly(t *testing.T) {
 		Arguments: args,
 	}
 
-	result, err := handler.Search(context.Background(), nil, params)
+	// Create context with test user ID
+	ctx := context.WithValue(context.Background(), auth.UserIDKey, "test-user-1")
+	result, err := handler.Search(ctx, nil, params)
 
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
@@ -153,7 +160,9 @@ func TestSearchHandler_SearchWithTags(t *testing.T) {
 		Arguments: args,
 	}
 
-	result, err := handler.Search(context.Background(), nil, params)
+	// Create context with test user ID
+	ctx := context.WithValue(context.Background(), auth.UserIDKey, "test-user-1")
+	result, err := handler.Search(ctx, nil, params)
 
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
@@ -209,7 +218,9 @@ func TestSearchHandler_SearchDefaultType(t *testing.T) {
 		Arguments: args,
 	}
 
-	result, err := handler.Search(context.Background(), nil, params)
+	// Create context with test user ID
+	ctx := context.WithValue(context.Background(), auth.UserIDKey, "test-user-1")
+	result, err := handler.Search(ctx, nil, params)
 
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
@@ -257,7 +268,9 @@ func TestSearchHandler_SearchEmptyQuery(t *testing.T) {
 		Arguments: args,
 	}
 
-	result, err := handler.Search(context.Background(), nil, params)
+	// Create context with test user ID
+	ctx := context.WithValue(context.Background(), auth.UserIDKey, "test-user-1")
+	result, err := handler.Search(ctx, nil, params)
 
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
@@ -291,7 +304,9 @@ func TestSearchHandler_SearchNoResults(t *testing.T) {
 		Arguments: args,
 	}
 
-	result, err := handler.Search(context.Background(), nil, params)
+	// Create context with test user ID
+	ctx := context.WithValue(context.Background(), auth.UserIDKey, "test-user-1")
+	result, err := handler.Search(ctx, nil, params)
 
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)

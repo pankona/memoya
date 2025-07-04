@@ -18,15 +18,21 @@ type Server struct {
 	todoHandler   *handlers.TodoHandler
 	searchHandler *handlers.SearchHandler
 	tagHandler    *handlers.TagHandler
+	authHandler   *handlers.AuthHandler
 }
 
 // NewServer creates a new server instance
 func NewServer(storage storage.Storage) *Server {
+	// TODO: Get OAuth credentials from environment variables
+	clientID := "memoya-client-id"         // Should come from env
+	clientSecret := "memoya-client-secret" // Should come from env
+
 	return &Server{
 		memoHandler:   handlers.NewMemoHandlerWithStorage(storage),
 		todoHandler:   handlers.NewTodoHandlerWithStorage(storage),
 		searchHandler: handlers.NewSearchHandler(storage),
 		tagHandler:    handlers.NewTagHandler(storage),
+		authHandler:   handlers.NewAuthHandler(storage, clientID, clientSecret),
 	}
 }
 
@@ -448,4 +454,130 @@ func getSearchTypeValue(ptr *server.SearchRequestType) string {
 		return ""
 	}
 	return string(*ptr)
+}
+
+func getBoolValue(ptr *bool) bool {
+	if ptr == nil {
+		return false
+	}
+	return *ptr
+}
+
+// writeAuthSuccessResponse writes the MCP auth handler result as JSON
+func writeAuthSuccessResponse(w http.ResponseWriter, result interface{}) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	// Extract JSON from TextContent using type switch
+	switch r := result.(type) {
+	case *mcp.CallToolResultFor[handlers.DeviceAuthStartResult]:
+		if len(r.Content) > 0 {
+			if textContent, ok := r.Content[0].(*mcp.TextContent); ok {
+				w.Write([]byte(textContent.Text))
+				return nil
+			}
+		}
+	case *mcp.CallToolResultFor[handlers.DeviceAuthPollResult]:
+		if len(r.Content) > 0 {
+			if textContent, ok := r.Content[0].(*mcp.TextContent); ok {
+				w.Write([]byte(textContent.Text))
+				return nil
+			}
+		}
+	case *mcp.CallToolResultFor[handlers.UserInfoResult]:
+		if len(r.Content) > 0 {
+			if textContent, ok := r.Content[0].(*mcp.TextContent); ok {
+				w.Write([]byte(textContent.Text))
+				return nil
+			}
+		}
+	case *mcp.CallToolResultFor[handlers.AccountDeleteResult]:
+		if len(r.Content) > 0 {
+			if textContent, ok := r.Content[0].(*mcp.TextContent); ok {
+				w.Write([]byte(textContent.Text))
+				return nil
+			}
+		}
+	}
+
+	return fmt.Errorf("invalid auth response format")
+}
+
+// Authentication endpoints
+func (s *Server) StartDeviceAuth(w http.ResponseWriter, r *http.Request) {
+	var req server.DeviceAuthStartRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErrorResponse(w, http.StatusBadRequest, "Invalid JSON format", "BAD_REQUEST")
+		return
+	}
+
+	args := handlers.DeviceAuthStartArgs{}
+	params := &mcp.CallToolParamsFor[handlers.DeviceAuthStartArgs]{Arguments: args}
+	result, err := s.authHandler.StartDeviceAuth(r.Context(), nil, params)
+	if err != nil {
+		writeErrorResponse(w, http.StatusInternalServerError, err.Error(), "INTERNAL_ERROR")
+		return
+	}
+
+	if err := writeAuthSuccessResponse(w, result); err != nil {
+		writeErrorResponse(w, http.StatusInternalServerError, "Failed to encode response", "INTERNAL_ERROR")
+	}
+}
+
+func (s *Server) PollDeviceAuth(w http.ResponseWriter, r *http.Request) {
+	var req server.DeviceAuthPollRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErrorResponse(w, http.StatusBadRequest, "Invalid JSON format", "BAD_REQUEST")
+		return
+	}
+
+	args := handlers.DeviceAuthPollArgs{
+		DeviceCode: req.DeviceCode,
+	}
+	params := &mcp.CallToolParamsFor[handlers.DeviceAuthPollArgs]{Arguments: args}
+	result, err := s.authHandler.PollDeviceAuth(r.Context(), nil, params)
+	if err != nil {
+		writeErrorResponse(w, http.StatusInternalServerError, err.Error(), "INTERNAL_ERROR")
+		return
+	}
+
+	if err := writeAuthSuccessResponse(w, result); err != nil {
+		writeErrorResponse(w, http.StatusInternalServerError, "Failed to encode response", "INTERNAL_ERROR")
+	}
+}
+
+func (s *Server) GetUserInfo(w http.ResponseWriter, r *http.Request) {
+	args := handlers.UserInfoArgs{}
+	params := &mcp.CallToolParamsFor[handlers.UserInfoArgs]{Arguments: args}
+	result, err := s.authHandler.GetUserInfo(r.Context(), nil, params)
+	if err != nil {
+		writeErrorResponse(w, http.StatusInternalServerError, err.Error(), "INTERNAL_ERROR")
+		return
+	}
+
+	if err := writeAuthSuccessResponse(w, result); err != nil {
+		writeErrorResponse(w, http.StatusInternalServerError, "Failed to encode response", "INTERNAL_ERROR")
+	}
+}
+
+func (s *Server) DeleteAccount(w http.ResponseWriter, r *http.Request) {
+	var req server.AccountDeleteRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErrorResponse(w, http.StatusBadRequest, "Invalid JSON format", "BAD_REQUEST")
+		return
+	}
+
+	args := handlers.AccountDeleteArgs{
+		Confirm: getBoolValue(req.Confirm),
+	}
+	params := &mcp.CallToolParamsFor[handlers.AccountDeleteArgs]{Arguments: args}
+	result, err := s.authHandler.DeleteAccount(r.Context(), nil, params)
+	if err != nil {
+		writeErrorResponse(w, http.StatusInternalServerError, err.Error(), "INTERNAL_ERROR")
+		return
+	}
+
+	if err := writeAuthSuccessResponse(w, result); err != nil {
+		writeErrorResponse(w, http.StatusInternalServerError, "Failed to encode response", "INTERNAL_ERROR")
+	}
 }

@@ -16,7 +16,15 @@ import (
 )
 
 const (
-	BearerAuthScopes = "BearerAuth.Scopes"
+	BearerAuthScopes = "bearerAuth.Scopes"
+)
+
+// Defines values for DeviceAuthPollResponseDataStatus.
+const (
+	Completed DeviceAuthPollResponseDataStatus = "completed"
+	Denied    DeviceAuthPollResponseDataStatus = "denied"
+	Expired   DeviceAuthPollResponseDataStatus = "expired"
+	Pending   DeviceAuthPollResponseDataStatus = "pending"
 )
 
 // Defines values for SearchRequestType.
@@ -81,6 +89,71 @@ const (
 	TodoUpdateRequestStatusInProgress TodoUpdateRequestStatus = "in_progress"
 	TodoUpdateRequestStatusTodo       TodoUpdateRequestStatus = "todo"
 )
+
+// AccountDeleteRequest defines model for AccountDeleteRequest.
+type AccountDeleteRequest struct {
+	// Confirm Confirmation flag for deletion
+	Confirm *bool `json:"confirm,omitempty"`
+}
+
+// AccountDeleteResponse defines model for AccountDeleteResponse.
+type AccountDeleteResponse struct {
+	Message *string `json:"message,omitempty"`
+	Success *bool   `json:"success,omitempty"`
+}
+
+// DeviceAuthPollRequest defines model for DeviceAuthPollRequest.
+type DeviceAuthPollRequest struct {
+	// DeviceCode Device code from start request
+	DeviceCode string `json:"device_code"`
+}
+
+// DeviceAuthPollResponse defines model for DeviceAuthPollResponse.
+type DeviceAuthPollResponse struct {
+	Data *struct {
+		// AccessToken JWT access token (only when authenticated)
+		AccessToken *string `json:"access_token,omitempty"`
+
+		// Status Authentication status
+		Status *DeviceAuthPollResponseDataStatus `json:"status,omitempty"`
+	} `json:"data,omitempty"`
+	Message *string `json:"message,omitempty"`
+	Success *bool   `json:"success,omitempty"`
+}
+
+// DeviceAuthPollResponseDataStatus Authentication status
+type DeviceAuthPollResponseDataStatus string
+
+// DeviceAuthStartRequest defines model for DeviceAuthStartRequest.
+type DeviceAuthStartRequest struct {
+	// ClientId OAuth client ID
+	ClientId *string `json:"client_id,omitempty"`
+}
+
+// DeviceAuthStartResponse defines model for DeviceAuthStartResponse.
+type DeviceAuthStartResponse struct {
+	Data *struct {
+		// DeviceCode Device code for polling
+		DeviceCode *string `json:"device_code,omitempty"`
+
+		// ExpiresIn Device code expiration time in seconds
+		ExpiresIn *int `json:"expires_in,omitempty"`
+
+		// Interval Polling interval in seconds
+		Interval *int `json:"interval,omitempty"`
+
+		// UserCode User code to enter on verification URL
+		UserCode *string `json:"user_code,omitempty"`
+
+		// VerificationUri URL where user enters the code
+		VerificationUri *string `json:"verification_uri,omitempty"`
+
+		// VerificationUriComplete Complete verification URL with code
+		VerificationUriComplete *string `json:"verification_uri_complete,omitempty"`
+	} `json:"data,omitempty"`
+	Message *string `json:"message,omitempty"`
+	Success *bool   `json:"success,omitempty"`
+}
 
 // Error defines model for Error.
 type Error struct {
@@ -191,8 +264,8 @@ type SearchRequest struct {
 // SearchRequestType Filter by type
 type SearchRequestType string
 
-// SearchResponse defines model for SearchResponse.
-type SearchResponse struct {
+// SearchResult defines model for SearchResult.
+type SearchResult struct {
 	Message *string        `json:"message,omitempty"`
 	Query   *string        `json:"query,omitempty"`
 	Results *SearchResults `json:"results,omitempty"`
@@ -342,6 +415,19 @@ type TodoUpdateResponse struct {
 	Success *bool   `json:"success,omitempty"`
 }
 
+// UserInfoResponse defines model for UserInfoResponse.
+type UserInfoResponse struct {
+	Data *struct {
+		CreatedAt *time.Time `json:"created_at,omitempty"`
+
+		// Id User ID
+		Id       *string `json:"id,omitempty"`
+		IsActive *bool   `json:"is_active,omitempty"`
+	} `json:"data,omitempty"`
+	Message *string `json:"message,omitempty"`
+	Success *bool   `json:"success,omitempty"`
+}
+
 // BadRequest defines model for BadRequest.
 type BadRequest = Error
 
@@ -350,6 +436,18 @@ type InternalServerError = Error
 
 // NotFound defines model for NotFound.
 type NotFound = Error
+
+// Unauthorized defines model for Unauthorized.
+type Unauthorized = Error
+
+// DeleteAccountJSONRequestBody defines body for DeleteAccount for application/json ContentType.
+type DeleteAccountJSONRequestBody = AccountDeleteRequest
+
+// PollDeviceAuthJSONRequestBody defines body for PollDeviceAuth for application/json ContentType.
+type PollDeviceAuthJSONRequestBody = DeviceAuthPollRequest
+
+// StartDeviceAuthJSONRequestBody defines body for StartDeviceAuth for application/json ContentType.
+type StartDeviceAuthJSONRequestBody = DeviceAuthStartRequest
 
 // CreateMemoJSONRequestBody defines body for CreateMemo for application/json ContentType.
 type CreateMemoJSONRequestBody = MemoCreateRequest
@@ -454,6 +552,24 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 
 // The interface specification for the client above.
 type ClientInterface interface {
+	// DeleteAccountWithBody request with any body
+	DeleteAccountWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	DeleteAccount(ctx context.Context, body DeleteAccountJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PollDeviceAuthWithBody request with any body
+	PollDeviceAuthWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PollDeviceAuth(ctx context.Context, body PollDeviceAuthJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// StartDeviceAuthWithBody request with any body
+	StartDeviceAuthWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	StartDeviceAuth(ctx context.Context, body StartDeviceAuthJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetUserInfo request
+	GetUserInfo(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// HealthCheck request
 	HealthCheck(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -506,6 +622,90 @@ type ClientInterface interface {
 	UpdateTodoWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	UpdateTodo(ctx context.Context, body UpdateTodoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+}
+
+func (c *Client) DeleteAccountWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteAccountRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteAccount(ctx context.Context, body DeleteAccountJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteAccountRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PollDeviceAuthWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPollDeviceAuthRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PollDeviceAuth(ctx context.Context, body PollDeviceAuthJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPollDeviceAuthRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) StartDeviceAuthWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewStartDeviceAuthRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) StartDeviceAuth(ctx context.Context, body StartDeviceAuthJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewStartDeviceAuthRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetUserInfo(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetUserInfoRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
 }
 
 func (c *Client) HealthCheck(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -758,6 +958,153 @@ func (c *Client) UpdateTodo(ctx context.Context, body UpdateTodoJSONRequestBody,
 		return nil, err
 	}
 	return c.Client.Do(req)
+}
+
+// NewDeleteAccountRequest calls the generic DeleteAccount builder with application/json body
+func NewDeleteAccountRequest(server string, body DeleteAccountJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewDeleteAccountRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewDeleteAccountRequestWithBody generates requests for DeleteAccount with any type of body
+func NewDeleteAccountRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/auth/delete_account")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewPollDeviceAuthRequest calls the generic PollDeviceAuth builder with application/json body
+func NewPollDeviceAuthRequest(server string, body PollDeviceAuthJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPollDeviceAuthRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPollDeviceAuthRequestWithBody generates requests for PollDeviceAuth with any type of body
+func NewPollDeviceAuthRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/auth/device_poll")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewStartDeviceAuthRequest calls the generic StartDeviceAuth builder with application/json body
+func NewStartDeviceAuthRequest(server string, body StartDeviceAuthJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewStartDeviceAuthRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewStartDeviceAuthRequestWithBody generates requests for StartDeviceAuth with any type of body
+func NewStartDeviceAuthRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/auth/device_start")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetUserInfoRequest generates requests for GetUserInfo
+func NewGetUserInfoRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/auth/user")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
 }
 
 // NewHealthCheckRequest generates requests for HealthCheck
@@ -1230,6 +1577,24 @@ func WithBaseURL(baseURL string) ClientOption {
 
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
+	// DeleteAccountWithBodyWithResponse request with any body
+	DeleteAccountWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeleteAccountResponse, error)
+
+	DeleteAccountWithResponse(ctx context.Context, body DeleteAccountJSONRequestBody, reqEditors ...RequestEditorFn) (*DeleteAccountResponse, error)
+
+	// PollDeviceAuthWithBodyWithResponse request with any body
+	PollDeviceAuthWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PollDeviceAuthResponse, error)
+
+	PollDeviceAuthWithResponse(ctx context.Context, body PollDeviceAuthJSONRequestBody, reqEditors ...RequestEditorFn) (*PollDeviceAuthResponse, error)
+
+	// StartDeviceAuthWithBodyWithResponse request with any body
+	StartDeviceAuthWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*StartDeviceAuthResponse, error)
+
+	StartDeviceAuthWithResponse(ctx context.Context, body StartDeviceAuthJSONRequestBody, reqEditors ...RequestEditorFn) (*StartDeviceAuthResponse, error)
+
+	// GetUserInfoWithResponse request
+	GetUserInfoWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetUserInfoResponse, error)
+
 	// HealthCheckWithResponse request
 	HealthCheckWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*HealthCheckResponse, error)
 
@@ -1254,9 +1619,9 @@ type ClientWithResponsesInterface interface {
 	UpdateMemoWithResponse(ctx context.Context, body UpdateMemoJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateMemoResponse, error)
 
 	// SearchWithBodyWithResponse request with any body
-	SearchWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SearchResponseHTTP, error)
+	SearchWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SearchResponse, error)
 
-	SearchWithResponse(ctx context.Context, body SearchJSONRequestBody, reqEditors ...RequestEditorFn) (*SearchResponseHTTP, error)
+	SearchWithResponse(ctx context.Context, body SearchJSONRequestBody, reqEditors ...RequestEditorFn) (*SearchResponse, error)
 
 	// ListTagsWithBodyWithResponse request with any body
 	ListTagsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ListTagsResponse, error)
@@ -1282,6 +1647,103 @@ type ClientWithResponsesInterface interface {
 	UpdateTodoWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateTodoResponse, error)
 
 	UpdateTodoWithResponse(ctx context.Context, body UpdateTodoJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateTodoResponse, error)
+}
+
+type DeleteAccountResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AccountDeleteResponse
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteAccountResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteAccountResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type PollDeviceAuthResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DeviceAuthPollResponse
+	JSON400      *BadRequest
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r PollDeviceAuthResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PollDeviceAuthResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type StartDeviceAuthResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DeviceAuthStartResponse
+	JSON400      *BadRequest
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r StartDeviceAuthResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r StartDeviceAuthResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetUserInfoResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *UserInfoResponse
+	JSON401      *Unauthorized
+	JSON500      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetUserInfoResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetUserInfoResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
 }
 
 type HealthCheckResponse struct {
@@ -1314,6 +1776,7 @@ type CreateMemoResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *MemoCreateResponse
 	JSON400      *BadRequest
+	JSON401      *Unauthorized
 	JSON500      *InternalServerError
 }
 
@@ -1338,6 +1801,7 @@ type DeleteMemoResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *MemoDeleteResponse
 	JSON400      *BadRequest
+	JSON401      *Unauthorized
 	JSON404      *NotFound
 	JSON500      *InternalServerError
 }
@@ -1363,6 +1827,7 @@ type ListMemosResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *MemoListResponse
 	JSON400      *BadRequest
+	JSON401      *Unauthorized
 	JSON500      *InternalServerError
 }
 
@@ -1387,6 +1852,7 @@ type UpdateMemoResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *MemoUpdateResponse
 	JSON400      *BadRequest
+	JSON401      *Unauthorized
 	JSON404      *NotFound
 	JSON500      *InternalServerError
 }
@@ -1407,16 +1873,17 @@ func (r UpdateMemoResponse) StatusCode() int {
 	return 0
 }
 
-type SearchResponseHTTP struct {
+type SearchResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *SearchResponse
+	JSON200      *SearchResult
 	JSON400      *BadRequest
+	JSON401      *Unauthorized
 	JSON500      *InternalServerError
 }
 
 // Status returns HTTPResponse.Status
-func (r SearchResponseHTTP) Status() string {
+func (r SearchResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -1424,7 +1891,7 @@ func (r SearchResponseHTTP) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r SearchResponseHTTP) StatusCode() int {
+func (r SearchResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -1436,6 +1903,7 @@ type ListTagsResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *TagListResponse
 	JSON400      *BadRequest
+	JSON401      *Unauthorized
 	JSON500      *InternalServerError
 }
 
@@ -1460,6 +1928,7 @@ type CreateTodoResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *TodoCreateResponse
 	JSON400      *BadRequest
+	JSON401      *Unauthorized
 	JSON500      *InternalServerError
 }
 
@@ -1484,6 +1953,7 @@ type DeleteTodoResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *TodoDeleteResponse
 	JSON400      *BadRequest
+	JSON401      *Unauthorized
 	JSON404      *NotFound
 	JSON500      *InternalServerError
 }
@@ -1509,6 +1979,7 @@ type ListTodosResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *TodoListResponse
 	JSON400      *BadRequest
+	JSON401      *Unauthorized
 	JSON500      *InternalServerError
 }
 
@@ -1533,6 +2004,7 @@ type UpdateTodoResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *TodoUpdateResponse
 	JSON400      *BadRequest
+	JSON401      *Unauthorized
 	JSON404      *NotFound
 	JSON500      *InternalServerError
 }
@@ -1551,6 +2023,66 @@ func (r UpdateTodoResponse) StatusCode() int {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
+}
+
+// DeleteAccountWithBodyWithResponse request with arbitrary body returning *DeleteAccountResponse
+func (c *ClientWithResponses) DeleteAccountWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeleteAccountResponse, error) {
+	rsp, err := c.DeleteAccountWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteAccountResponse(rsp)
+}
+
+func (c *ClientWithResponses) DeleteAccountWithResponse(ctx context.Context, body DeleteAccountJSONRequestBody, reqEditors ...RequestEditorFn) (*DeleteAccountResponse, error) {
+	rsp, err := c.DeleteAccount(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteAccountResponse(rsp)
+}
+
+// PollDeviceAuthWithBodyWithResponse request with arbitrary body returning *PollDeviceAuthResponse
+func (c *ClientWithResponses) PollDeviceAuthWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PollDeviceAuthResponse, error) {
+	rsp, err := c.PollDeviceAuthWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePollDeviceAuthResponse(rsp)
+}
+
+func (c *ClientWithResponses) PollDeviceAuthWithResponse(ctx context.Context, body PollDeviceAuthJSONRequestBody, reqEditors ...RequestEditorFn) (*PollDeviceAuthResponse, error) {
+	rsp, err := c.PollDeviceAuth(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePollDeviceAuthResponse(rsp)
+}
+
+// StartDeviceAuthWithBodyWithResponse request with arbitrary body returning *StartDeviceAuthResponse
+func (c *ClientWithResponses) StartDeviceAuthWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*StartDeviceAuthResponse, error) {
+	rsp, err := c.StartDeviceAuthWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseStartDeviceAuthResponse(rsp)
+}
+
+func (c *ClientWithResponses) StartDeviceAuthWithResponse(ctx context.Context, body StartDeviceAuthJSONRequestBody, reqEditors ...RequestEditorFn) (*StartDeviceAuthResponse, error) {
+	rsp, err := c.StartDeviceAuth(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseStartDeviceAuthResponse(rsp)
+}
+
+// GetUserInfoWithResponse request returning *GetUserInfoResponse
+func (c *ClientWithResponses) GetUserInfoWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetUserInfoResponse, error) {
+	rsp, err := c.GetUserInfo(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetUserInfoResponse(rsp)
 }
 
 // HealthCheckWithResponse request returning *HealthCheckResponse
@@ -1630,8 +2162,8 @@ func (c *ClientWithResponses) UpdateMemoWithResponse(ctx context.Context, body U
 	return ParseUpdateMemoResponse(rsp)
 }
 
-// SearchWithBodyWithResponse request with arbitrary body returning *SearchResponseHTTP
-func (c *ClientWithResponses) SearchWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SearchResponseHTTP, error) {
+// SearchWithBodyWithResponse request with arbitrary body returning *SearchResponse
+func (c *ClientWithResponses) SearchWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SearchResponse, error) {
 	rsp, err := c.SearchWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
@@ -1639,7 +2171,7 @@ func (c *ClientWithResponses) SearchWithBodyWithResponse(ctx context.Context, co
 	return ParseSearchResponse(rsp)
 }
 
-func (c *ClientWithResponses) SearchWithResponse(ctx context.Context, body SearchJSONRequestBody, reqEditors ...RequestEditorFn) (*SearchResponseHTTP, error) {
+func (c *ClientWithResponses) SearchWithResponse(ctx context.Context, body SearchJSONRequestBody, reqEditors ...RequestEditorFn) (*SearchResponse, error) {
 	rsp, err := c.Search(ctx, body, reqEditors...)
 	if err != nil {
 		return nil, err
@@ -1732,6 +2264,173 @@ func (c *ClientWithResponses) UpdateTodoWithResponse(ctx context.Context, body U
 	return ParseUpdateTodoResponse(rsp)
 }
 
+// ParseDeleteAccountResponse parses an HTTP response from a DeleteAccountWithResponse call
+func ParseDeleteAccountResponse(rsp *http.Response) (*DeleteAccountResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteAccountResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AccountDeleteResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePollDeviceAuthResponse parses an HTTP response from a PollDeviceAuthWithResponse call
+func ParsePollDeviceAuthResponse(rsp *http.Response) (*PollDeviceAuthResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PollDeviceAuthResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DeviceAuthPollResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseStartDeviceAuthResponse parses an HTTP response from a StartDeviceAuthWithResponse call
+func ParseStartDeviceAuthResponse(rsp *http.Response) (*StartDeviceAuthResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &StartDeviceAuthResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DeviceAuthStartResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetUserInfoResponse parses an HTTP response from a GetUserInfoWithResponse call
+func ParseGetUserInfoResponse(rsp *http.Response) (*GetUserInfoResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetUserInfoResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest UserInfoResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseHealthCheckResponse parses an HTTP response from a HealthCheckWithResponse call
 func ParseHealthCheckResponse(rsp *http.Response) (*HealthCheckResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -1789,6 +2488,13 @@ func ParseCreateMemoResponse(rsp *http.Response) (*CreateMemoResponse, error) {
 		}
 		response.JSON400 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalServerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -1828,6 +2534,13 @@ func ParseDeleteMemoResponse(rsp *http.Response) (*DeleteMemoResponse, error) {
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest NotFound
@@ -1876,6 +2589,13 @@ func ParseListMemosResponse(rsp *http.Response) (*ListMemosResponse, error) {
 		}
 		response.JSON400 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalServerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -1916,6 +2636,13 @@ func ParseUpdateMemoResponse(rsp *http.Response) (*UpdateMemoResponse, error) {
 		}
 		response.JSON400 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest NotFound
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -1936,21 +2663,21 @@ func ParseUpdateMemoResponse(rsp *http.Response) (*UpdateMemoResponse, error) {
 }
 
 // ParseSearchResponse parses an HTTP response from a SearchWithResponse call
-func ParseSearchResponse(rsp *http.Response) (*SearchResponseHTTP, error) {
+func ParseSearchResponse(rsp *http.Response) (*SearchResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &SearchResponseHTTP{
+	response := &SearchResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest SearchResponse
+		var dest SearchResult
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -1962,6 +2689,13 @@ func ParseSearchResponse(rsp *http.Response) (*SearchResponseHTTP, error) {
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalServerError
@@ -2003,6 +2737,13 @@ func ParseListTagsResponse(rsp *http.Response) (*ListTagsResponse, error) {
 		}
 		response.JSON400 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalServerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -2043,6 +2784,13 @@ func ParseCreateTodoResponse(rsp *http.Response) (*CreateTodoResponse, error) {
 		}
 		response.JSON400 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalServerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -2082,6 +2830,13 @@ func ParseDeleteTodoResponse(rsp *http.Response) (*DeleteTodoResponse, error) {
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest NotFound
@@ -2130,6 +2885,13 @@ func ParseListTodosResponse(rsp *http.Response) (*ListTodosResponse, error) {
 		}
 		response.JSON400 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalServerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -2169,6 +2931,13 @@ func ParseUpdateTodoResponse(rsp *http.Response) (*UpdateTodoResponse, error) {
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest NotFound

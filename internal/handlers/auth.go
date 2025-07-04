@@ -167,9 +167,39 @@ type UserInfoResult struct {
 }
 
 func (h *AuthHandler) GetUserInfo(ctx context.Context, ss *mcp.ServerSession, params *mcp.CallToolParamsFor[UserInfoArgs]) (*mcp.CallToolResultFor[UserInfoResult], error) {
-	// This would typically be called with authenticated context
-	// For now, we'll return an error since we need the authentication middleware
-	return nil, fmt.Errorf("user info endpoint requires authentication middleware")
+	if h.storage == nil {
+		return nil, fmt.Errorf("storage not initialized")
+	}
+
+	// Get user ID from context (set by auth middleware)
+	userID, err := auth.RequireAuth(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("authentication required: %w", err)
+	}
+
+	// Get user data
+	user, err := h.storage.GetUser(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+
+	result := UserInfoResult{
+		Success: true,
+		User:    user,
+		Message: "User information retrieved successfully",
+	}
+
+	// Convert to JSON
+	jsonBytes, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal result: %w", err)
+	}
+
+	return &mcp.CallToolResultFor[UserInfoResult]{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: string(jsonBytes)},
+		},
+	}, nil
 }
 
 // AccountDeleteArgs represents arguments for deleting user account
@@ -186,11 +216,41 @@ type AccountDeleteResult struct {
 func (h *AuthHandler) DeleteAccount(ctx context.Context, ss *mcp.ServerSession, params *mcp.CallToolParamsFor[AccountDeleteArgs]) (*mcp.CallToolResultFor[AccountDeleteResult], error) {
 	args := params.Arguments
 
+	if h.storage == nil {
+		return nil, fmt.Errorf("storage not initialized")
+	}
+
+	// Get user ID from context (set by auth middleware)
+	userID, err := auth.RequireAuth(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("authentication required: %w", err)
+	}
+
+	// Require explicit confirmation
 	if !args.Confirm {
 		return nil, fmt.Errorf("account deletion requires explicit confirmation")
 	}
 
-	// This would typically be called with authenticated context
-	// For now, we'll return an error since we need the authentication middleware
-	return nil, fmt.Errorf("account deletion endpoint requires authentication middleware")
+	// Delete all user data including memos, todos, and user record
+	err = h.storage.DeleteUser(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to delete user data: %w", err)
+	}
+
+	result := AccountDeleteResult{
+		Success: true,
+		Message: "Account and all associated data deleted successfully",
+	}
+
+	// Convert to JSON
+	jsonBytes, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal result: %w", err)
+	}
+
+	return &mcp.CallToolResultFor[AccountDeleteResult]{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: string(jsonBytes)},
+		},
+	}, nil
 }

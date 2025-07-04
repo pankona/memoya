@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/pankona/memoya/internal/auth"
 	"github.com/pankona/memoya/internal/models"
 )
 
@@ -26,7 +27,9 @@ func TestTodoHandler_Create(t *testing.T) {
 		Arguments: args,
 	}
 
-	result, err := handler.Create(context.Background(), nil, params)
+	// Create context with test user ID
+	ctx := context.WithValue(context.Background(), auth.UserIDKey, "test-user-1")
+	result, err := handler.Create(ctx, nil, params)
 
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
@@ -87,7 +90,9 @@ func TestTodoHandler_CreateWithDefaults(t *testing.T) {
 		Arguments: args,
 	}
 
-	result, err := handler.Create(context.Background(), nil, params)
+	// Create context with test user ID
+	ctx := context.WithValue(context.Background(), auth.UserIDKey, "test-user-1")
+	result, err := handler.Create(ctx, nil, params)
 
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
@@ -118,7 +123,9 @@ func TestTodoHandler_List(t *testing.T) {
 		Arguments: args,
 	}
 
-	result, err := handler.List(context.Background(), nil, params)
+	// Create context with test user ID
+	ctx := context.WithValue(context.Background(), auth.UserIDKey, "test-user-1")
+	result, err := handler.List(ctx, nil, params)
 
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
@@ -169,7 +176,9 @@ func TestTodoHandler_ListWithStatusFilter(t *testing.T) {
 		Arguments: args,
 	}
 
-	result, err := handler.List(context.Background(), nil, params)
+	// Create context with test user ID
+	ctx := context.WithValue(context.Background(), auth.UserIDKey, "test-user-1")
+	result, err := handler.List(ctx, nil, params)
 
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
@@ -197,7 +206,9 @@ func TestTodoHandler_ListWithPriorityFilter(t *testing.T) {
 		Arguments: args,
 	}
 
-	result, err := handler.List(context.Background(), nil, params)
+	// Create context with test user ID
+	ctx := context.WithValue(context.Background(), auth.UserIDKey, "test-user-1")
+	result, err := handler.List(ctx, nil, params)
 
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
@@ -225,7 +236,9 @@ func TestTodoHandler_ListWithTagFilter(t *testing.T) {
 		Arguments: args,
 	}
 
-	result, err := handler.List(context.Background(), nil, params)
+	// Create context with test user ID
+	ctx := context.WithValue(context.Background(), auth.UserIDKey, "test-user-1")
+	result, err := handler.List(ctx, nil, params)
 
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
@@ -258,7 +271,9 @@ func TestTodoHandler_Update(t *testing.T) {
 		Arguments: args,
 	}
 
-	result, err := handler.Update(context.Background(), nil, params)
+	// Create context with test user ID
+	ctx := context.WithValue(context.Background(), auth.UserIDKey, "test-user-1")
+	result, err := handler.Update(ctx, nil, params)
 
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
@@ -320,7 +335,9 @@ func TestTodoHandler_Delete(t *testing.T) {
 		Arguments: args,
 	}
 
-	result, err := handler.Delete(context.Background(), nil, params)
+	// Create context with test user ID
+	ctx := context.WithValue(context.Background(), auth.UserIDKey, "test-user-1")
+	result, err := handler.Delete(ctx, nil, params)
 
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
@@ -360,7 +377,9 @@ func TestTodoHandler_CreateWithoutStorage(t *testing.T) {
 		Arguments: args,
 	}
 
-	result, err := handler.Create(context.Background(), nil, params)
+	// Create context with test user ID
+	ctx := context.WithValue(context.Background(), auth.UserIDKey, "test-user-1")
+	result, err := handler.Create(ctx, nil, params)
 
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
@@ -389,7 +408,9 @@ func TestTodoHandler_ListWithoutStorage(t *testing.T) {
 		Arguments: args,
 	}
 
-	result, err := handler.List(context.Background(), nil, params)
+	// Create context with test user ID
+	ctx := context.WithValue(context.Background(), auth.UserIDKey, "test-user-1")
+	result, err := handler.List(ctx, nil, params)
 
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)

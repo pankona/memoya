@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/pankona/memoya/internal/auth"
 	"github.com/pankona/memoya/internal/models"
 	"github.com/pankona/memoya/internal/storage"
 )
@@ -50,16 +51,23 @@ func (h *SearchHandler) Search(ctx context.Context, ss *mcp.ServerSession, param
 		return nil, fmt.Errorf("storage not initialized")
 	}
 
+	// Get user ID from context (set by auth middleware)
+	userID, err := auth.RequireAuth(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("authentication required: %w", err)
+	}
+
 	// Default to "all" if type not specified
 	searchType := args.Type
 	if searchType == "" {
 		searchType = "all"
 	}
 
-	// Create search filters
+	// Create search filters with user isolation
 	filters := storage.SearchFilters{
-		Type: searchType,
-		Tags: args.Tags,
+		UserID: userID,
+		Type:   searchType,
+		Tags:   args.Tags,
 	}
 
 	// Perform search

@@ -6,6 +6,7 @@ import (
 
 type Memo struct {
 	ID           string     `firestore:"id" json:"id"`
+	UserID       string     `firestore:"user_id" json:"user_id"`
 	Title        string     `firestore:"title" json:"title"`
 	Description  string     `firestore:"description" json:"description"`
 	Tags         []string   `firestore:"tags" json:"tags"`

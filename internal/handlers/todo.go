@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/pankona/memoya/internal/auth"
 	"github.com/pankona/memoya/internal/models"
 	"github.com/pankona/memoya/internal/storage"
 )
@@ -47,8 +48,15 @@ type TodoResult struct {
 func (h *TodoHandler) Create(ctx context.Context, ss *mcp.ServerSession, params *mcp.CallToolParamsFor[TodoCreateArgs]) (*mcp.CallToolResultFor[TodoResult], error) {
 	args := params.Arguments
 
+	// Get user ID from context (set by auth middleware)
+	userID, err := auth.RequireAuth(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("authentication required: %w", err)
+	}
+
 	todo := &models.Todo{
 		ID:           uuid.New().String(),
+		UserID:       userID,
 		Title:        args.Title,
 		Description:  args.Description,
 		Tags:         args.Tags,
@@ -114,9 +122,17 @@ type TodoListResult struct {
 func (h *TodoHandler) List(ctx context.Context, ss *mcp.ServerSession, params *mcp.CallToolParamsFor[TodoListArgs]) (*mcp.CallToolResultFor[TodoListResult], error) {
 	args := params.Arguments
 
+	// Get user ID from context (set by auth middleware)
+	userID, err := auth.RequireAuth(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("authentication required: %w", err)
+	}
+
 	if h.storage != nil {
-		// Build filters from arguments
-		filters := storage.TodoFilters{}
+		// Build filters from arguments with user isolation
+		filters := storage.TodoFilters{
+			UserID: userID,
+		}
 
 		if args.Status != "" {
 			status := models.TodoStatus(args.Status)
@@ -183,10 +199,21 @@ func (h *TodoHandler) Update(ctx context.Context, ss *mcp.ServerSession, params 
 		return nil, fmt.Errorf("storage not initialized")
 	}
 
+	// Get user ID from context (set by auth middleware)
+	userID, err := auth.RequireAuth(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("authentication required: %w", err)
+	}
+
 	// Fetch existing todo from storage
 	todo, err := h.storage.GetTodo(ctx, args.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get todo: %w", err)
+	}
+
+	// Check ownership
+	if todo.UserID != userID {
+		return nil, fmt.Errorf("access denied: todo belongs to different user")
 	}
 
 	// Update fields
@@ -222,9 +249,22 @@ func (h *TodoHandler) Update(ctx context.Context, ss *mcp.ServerSession, params 
 		return nil, fmt.Errorf("failed to update todo: %w", err)
 	}
 
+	// Create result
+	result := TodoResult{
+		Success: true,
+		Todo:    todo,
+		Message: fmt.Sprintf("Todo '%s' updated successfully", todo.Title),
+	}
+
+	// Convert to JSON
+	jsonBytes, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal result: %w", err)
+	}
+
 	return &mcp.CallToolResultFor[TodoResult]{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: fmt.Sprintf("Todo '%s' updated successfully", todo.Title)},
+			&mcp.TextContent{Text: string(jsonBytes)},
 		},
 	}, nil
 }
@@ -245,15 +285,43 @@ func (h *TodoHandler) Delete(ctx context.Context, ss *mcp.ServerSession, params 
 		return nil, fmt.Errorf("storage not initialized")
 	}
 
+	// Get user ID from context (set by auth middleware)
+	userID, err := auth.RequireAuth(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("authentication required: %w", err)
+	}
+
+	// Fetch existing todo to check ownership
+	todo, err := h.storage.GetTodo(ctx, args.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get todo: %w", err)
+	}
+
+	// Check ownership
+	if todo.UserID != userID {
+		return nil, fmt.Errorf("access denied: todo belongs to different user")
+	}
+
 	// Delete from storage
-	err := h.storage.DeleteTodo(ctx, args.ID)
+	err = h.storage.DeleteTodo(ctx, args.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to delete todo: %w", err)
 	}
 
+	result := DeleteResult{
+		Success: true,
+		Message: fmt.Sprintf("Todo %s deleted successfully", args.ID),
+	}
+
+	// Convert to JSON
+	jsonBytes, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal result: %w", err)
+	}
+
 	return &mcp.CallToolResultFor[DeleteResult]{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: fmt.Sprintf("Todo %s deleted successfully", args.ID)},
+			&mcp.TextContent{Text: string(jsonBytes)},
 		},
 	}, nil
 }

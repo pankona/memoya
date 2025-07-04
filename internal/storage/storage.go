@@ -8,6 +8,19 @@ import (
 
 // Storage defines the interface for data persistence
 type Storage interface {
+	// User operations
+	CreateUser(ctx context.Context, user *models.User) error
+	GetUser(ctx context.Context, id string) (*models.User, error)
+	GetUserByGoogleID(ctx context.Context, googleID string) (*models.User, error)
+	UpdateUser(ctx context.Context, user *models.User) error
+	DeleteUser(ctx context.Context, id string) error
+
+	// Device auth operations
+	CreateDeviceAuthSession(ctx context.Context, session *models.DeviceAuthSession) error
+	GetDeviceAuthSession(ctx context.Context, deviceCode string) (*models.DeviceAuthSession, error)
+	UpdateDeviceAuthSession(ctx context.Context, session *models.DeviceAuthSession) error
+	DeleteDeviceAuthSession(ctx context.Context, deviceCode string) error
+
 	// Todo operations
 	CreateTodo(ctx context.Context, todo *models.Todo) error
 	GetTodo(ctx context.Context, id string) (*models.Todo, error)
@@ -26,10 +39,11 @@ type Storage interface {
 	Search(ctx context.Context, query string, filters SearchFilters) (*SearchResults, error)
 
 	// Tag operations
-	GetAllTags(ctx context.Context) ([]string, error)
+	GetAllTags(ctx context.Context, userID string) ([]string, error)
 }
 
 type TodoFilters struct {
+	UserID   string // Required for user isolation
 	Status   *models.TodoStatus
 	Priority *models.TodoPriority
 	Tags     []string
@@ -37,12 +51,14 @@ type TodoFilters struct {
 }
 
 type MemoFilters struct {
-	Tags []string
+	UserID string // Required for user isolation
+	Tags   []string
 }
 
 type SearchFilters struct {
-	Tags []string
-	Type string // "todo", "memo", or "all"
+	UserID string // Required for user isolation
+	Tags   []string
+	Type   string // "todo", "memo", or "all"
 }
 
 type SearchResults struct {

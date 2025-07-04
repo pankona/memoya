@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/pankona/memoya/internal/auth"
 )
 
 func TestMemoHandler_Create(t *testing.T) {
@@ -23,7 +24,9 @@ func TestMemoHandler_Create(t *testing.T) {
 		Arguments: args,
 	}
 
-	result, err := handler.Create(context.Background(), nil, params)
+	// Create context with test user ID
+	ctx := context.WithValue(context.Background(), auth.UserIDKey, "test-user-1")
+	result, err := handler.Create(ctx, nil, params)
 
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)

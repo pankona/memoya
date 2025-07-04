@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/pankona/memoya/internal/auth"
 	"github.com/pankona/memoya/internal/models"
 	"github.com/pankona/memoya/internal/storage"
 )
@@ -49,8 +50,15 @@ func (h *MemoHandler) Create(ctx context.Context, ss *mcp.ServerSession, params 
 		return nil, fmt.Errorf("storage not initialized")
 	}
 
+	// Get user ID from context (set by auth middleware)
+	userID, err := auth.RequireAuth(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("authentication required: %w", err)
+	}
+
 	memo := &models.Memo{
 		ID:           uuid.New().String(),
+		UserID:       userID,
 		Title:        args.Title,
 		Description:  args.Description,
 		Tags:         args.Tags,
@@ -60,7 +68,7 @@ func (h *MemoHandler) Create(ctx context.Context, ss *mcp.ServerSession, params 
 	}
 
 	// Save to storage
-	err := h.storage.CreateMemo(ctx, memo)
+	err = h.storage.CreateMemo(ctx, memo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create memo: %w", err)
 	}
@@ -102,9 +110,16 @@ func (h *MemoHandler) List(ctx context.Context, ss *mcp.ServerSession, params *m
 		return nil, fmt.Errorf("storage not initialized")
 	}
 
-	// Create filters
+	// Get user ID from context (set by auth middleware)
+	userID, err := auth.RequireAuth(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("authentication required: %w", err)
+	}
+
+	// Create filters with user isolation
 	filters := storage.MemoFilters{
-		Tags: args.Tags,
+		UserID: userID,
+		Tags:   args.Tags,
 	}
 
 	// Fetch from storage
@@ -146,10 +161,21 @@ func (h *MemoHandler) Update(ctx context.Context, ss *mcp.ServerSession, params 
 		return nil, fmt.Errorf("storage not initialized")
 	}
 
+	// Get user ID from context (set by auth middleware)
+	userID, err := auth.RequireAuth(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("authentication required: %w", err)
+	}
+
 	// Fetch existing memo from storage
 	memo, err := h.storage.GetMemo(ctx, args.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get memo: %w", err)
+	}
+
+	// Check ownership
+	if memo.UserID != userID {
+		return nil, fmt.Errorf("access denied: memo belongs to different user")
 	}
 
 	// Update fields
@@ -213,15 +239,43 @@ func (h *MemoHandler) Delete(ctx context.Context, ss *mcp.ServerSession, params 
 		return nil, fmt.Errorf("storage not initialized")
 	}
 
+	// Get user ID from context (set by auth middleware)
+	userID, err := auth.RequireAuth(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("authentication required: %w", err)
+	}
+
+	// Fetch existing memo to check ownership
+	memo, err := h.storage.GetMemo(ctx, args.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get memo: %w", err)
+	}
+
+	// Check ownership
+	if memo.UserID != userID {
+		return nil, fmt.Errorf("access denied: memo belongs to different user")
+	}
+
 	// Delete from storage
-	err := h.storage.DeleteMemo(ctx, args.ID)
+	err = h.storage.DeleteMemo(ctx, args.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to delete memo: %w", err)
 	}
 
+	result := MemoDeleteResult{
+		Success: true,
+		Message: fmt.Sprintf("Memo %s deleted successfully", args.ID),
+	}
+
+	// Convert to JSON
+	jsonBytes, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal result: %w", err)
+	}
+
 	return &mcp.CallToolResultFor[MemoDeleteResult]{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: fmt.Sprintf("Memo %s deleted successfully", args.ID)},
+			&mcp.TextContent{Text: string(jsonBytes)},
 		},
 	}, nil
 }

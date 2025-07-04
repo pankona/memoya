@@ -22,6 +22,7 @@ const (
 
 type Todo struct {
 	ID           string       `firestore:"id" json:"id"`
+	UserID       string       `firestore:"user_id" json:"user_id"`
 	Title        string       `firestore:"title" json:"title"`
 	Description  string       `firestore:"description" json:"description"`
 	Status       TodoStatus   `firestore:"status" json:"status"`

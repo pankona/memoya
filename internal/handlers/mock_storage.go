@@ -10,14 +10,18 @@ import (
 )
 
 type MockStorage struct {
-	todos map[string]*models.Todo
-	memos map[string]*models.Memo
+	todos               map[string]*models.Todo
+	memos               map[string]*models.Memo
+	users               map[string]*models.User
+	deviceAuthSessions  map[string]*models.DeviceAuthSession
 }
 
 func NewMockStorage() *MockStorage {
 	return &MockStorage{
-		todos: make(map[string]*models.Todo),
-		memos: make(map[string]*models.Memo),
+		todos:              make(map[string]*models.Todo),
+		memos:              make(map[string]*models.Memo),
+		users:              make(map[string]*models.User),
+		deviceAuthSessions: make(map[string]*models.DeviceAuthSession),
 	}
 }
 
@@ -107,6 +111,10 @@ func (m *MockStorage) Search(ctx context.Context, query string, filters storage.
 
 	if filters.Type == "todo" || filters.Type == "all" || filters.Type == "" {
 		for _, todo := range m.todos {
+			// Apply user filter (user isolation)
+			if filters.UserID != "" && todo.UserID != filters.UserID {
+				continue
+			}
 			if m.matchesSearch(todo.Title, todo.Description, todo.Tags, query, filters.Tags) {
 				results.Todos = append(results.Todos, todo)
 			}
@@ -115,6 +123,10 @@ func (m *MockStorage) Search(ctx context.Context, query string, filters storage.
 
 	if filters.Type == "memo" || filters.Type == "all" || filters.Type == "" {
 		for _, memo := range m.memos {
+			// Apply user filter (user isolation)
+			if filters.UserID != "" && memo.UserID != filters.UserID {
+				continue
+			}
 			if m.matchesSearch(memo.Title, memo.Description, memo.Tags, query, filters.Tags) {
 				results.Memos = append(results.Memos, memo)
 			}
@@ -124,16 +136,24 @@ func (m *MockStorage) Search(ctx context.Context, query string, filters storage.
 	return results, nil
 }
 
-func (m *MockStorage) GetAllTags(ctx context.Context) ([]string, error) {
+func (m *MockStorage) GetAllTags(ctx context.Context, userID string) ([]string, error) {
 	tagSet := make(map[string]bool)
 
 	for _, todo := range m.todos {
+		// Apply user filter
+		if userID != "" && todo.UserID != userID {
+			continue
+		}
 		for _, tag := range todo.Tags {
 			tagSet[tag] = true
 		}
 	}
 
 	for _, memo := range m.memos {
+		// Apply user filter
+		if userID != "" && memo.UserID != userID {
+			continue
+		}
 		for _, tag := range memo.Tags {
 			tagSet[tag] = true
 		}
@@ -147,6 +167,10 @@ func (m *MockStorage) GetAllTags(ctx context.Context) ([]string, error) {
 }
 
 func (m *MockStorage) matchesTodo(todo *models.Todo, filters storage.TodoFilters) bool {
+	// Apply user filter (user isolation)
+	if filters.UserID != "" && todo.UserID != filters.UserID {
+		return false
+	}
 	if filters.Status != nil && todo.Status != *filters.Status {
 		return false
 	}
@@ -171,6 +195,10 @@ func (m *MockStorage) matchesTodo(todo *models.Todo, filters storage.TodoFilters
 }
 
 func (m *MockStorage) matchesMemo(memo *models.Memo, filters storage.MemoFilters) bool {
+	// Apply user filter (user isolation)
+	if filters.UserID != "" && memo.UserID != filters.UserID {
+		return false
+	}
 	if len(filters.Tags) > 0 {
 		for _, filterTag := range filters.Tags {
 			found := false
@@ -244,6 +272,7 @@ func (m *MockStorage) SetupTestData() {
 
 	todo1 := &models.Todo{
 		ID:           "test-todo-1",
+		UserID:       "test-user-1",
 		Title:        "Test Todo 1",
 		Description:  "Test description 1",
 		Status:       "todo",
@@ -255,6 +284,7 @@ func (m *MockStorage) SetupTestData() {
 
 	todo2 := &models.Todo{
 		ID:           "test-todo-2",
+		UserID:       "test-user-1",
 		Title:        "Test Todo 2",
 		Description:  "Test description 2",
 		Status:       "in_progress",
@@ -266,6 +296,7 @@ func (m *MockStorage) SetupTestData() {
 
 	memo1 := &models.Memo{
 		ID:           "test-memo-1",
+		UserID:       "test-user-1",
 		Title:        "Test Memo 1",
 		Description:  "Test memo description 1",
 		Tags:         []string{"work", "notes"},
@@ -276,6 +307,7 @@ func (m *MockStorage) SetupTestData() {
 
 	memo2 := &models.Memo{
 		ID:           "test-memo-2",
+		UserID:       "test-user-1",
 		Title:        "Test Memo 2",
 		Description:  "Test memo description 2",
 		Tags:         []string{"personal", "ideas"},
@@ -288,4 +320,73 @@ func (m *MockStorage) SetupTestData() {
 	m.todos[todo2.ID] = todo2
 	m.memos[memo1.ID] = memo1
 	m.memos[memo2.ID] = memo2
+}
+
+// User operations
+func (m *MockStorage) CreateUser(ctx context.Context, user *models.User) error {
+	m.users[user.ID] = user
+	return nil
+}
+
+func (m *MockStorage) GetUser(ctx context.Context, id string) (*models.User, error) {
+	user, exists := m.users[id]
+	if !exists {
+		return nil, fmt.Errorf("user not found")
+	}
+	return user, nil
+}
+
+func (m *MockStorage) GetUserByGoogleID(ctx context.Context, googleID string) (*models.User, error) {
+	for _, user := range m.users {
+		if user.GoogleID == googleID {
+			return user, nil
+		}
+	}
+	return nil, fmt.Errorf("user not found")
+}
+
+func (m *MockStorage) UpdateUser(ctx context.Context, user *models.User) error {
+	if _, exists := m.users[user.ID]; !exists {
+		return fmt.Errorf("user not found")
+	}
+	m.users[user.ID] = user
+	return nil
+}
+
+func (m *MockStorage) DeleteUser(ctx context.Context, id string) error {
+	if _, exists := m.users[id]; !exists {
+		return fmt.Errorf("user not found")
+	}
+	delete(m.users, id)
+	return nil
+}
+
+// Device auth operations
+func (m *MockStorage) CreateDeviceAuthSession(ctx context.Context, session *models.DeviceAuthSession) error {
+	m.deviceAuthSessions[session.DeviceCode] = session
+	return nil
+}
+
+func (m *MockStorage) GetDeviceAuthSession(ctx context.Context, deviceCode string) (*models.DeviceAuthSession, error) {
+	session, exists := m.deviceAuthSessions[deviceCode]
+	if !exists {
+		return nil, fmt.Errorf("device auth session not found")
+	}
+	return session, nil
+}
+
+func (m *MockStorage) UpdateDeviceAuthSession(ctx context.Context, session *models.DeviceAuthSession) error {
+	if _, exists := m.deviceAuthSessions[session.DeviceCode]; !exists {
+		return fmt.Errorf("device auth session not found")
+	}
+	m.deviceAuthSessions[session.DeviceCode] = session
+	return nil
+}
+
+func (m *MockStorage) DeleteDeviceAuthSession(ctx context.Context, deviceCode string) error {
+	if _, exists := m.deviceAuthSessions[deviceCode]; !exists {
+		return fmt.Errorf("device auth session not found")
+	}
+	delete(m.deviceAuthSessions, deviceCode)
+	return nil
 }

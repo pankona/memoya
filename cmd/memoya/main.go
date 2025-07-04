@@ -28,7 +28,7 @@ func main() {
 
 	// Initialize HTTP client
 	httpClient := client.NewHTTPClient(cloudRunURL)
-	
+
 	// Set auth token if available
 	if authToken := os.Getenv("MEMOYA_AUTH_TOKEN"); authToken != "" {
 		httpClient.SetAuthToken(authToken)

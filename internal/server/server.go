@@ -34,14 +34,14 @@ func NewServer(storage storage.Storage) *Server {
 func writeErrorResponse(w http.ResponseWriter, statusCode int, message, code string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	
+
 	successFlag := false
 	errorResp := server.Error{
 		Success: &successFlag,
 		Error:   &message,
 		Code:    &code,
 	}
-	
+
 	json.NewEncoder(w).Encode(errorResp)
 }
 
@@ -49,7 +49,7 @@ func writeErrorResponse(w http.ResponseWriter, statusCode int, message, code str
 func writeSuccessResponse(w http.ResponseWriter, result interface{}) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	
+
 	// Extract JSON from TextContent using type switch
 	switch r := result.(type) {
 	case *mcp.CallToolResultFor[handlers.MemoResult]:
@@ -109,7 +109,7 @@ func writeSuccessResponse(w http.ResponseWriter, result interface{}) error {
 			}
 		}
 	}
-	
+
 	return fmt.Errorf("invalid response format")
 }
 
@@ -119,7 +119,7 @@ func (s *Server) HealthCheck(w http.ResponseWriter, r *http.Request) {
 		"status":    "ok",
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(response)

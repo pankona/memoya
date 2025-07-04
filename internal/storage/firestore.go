@@ -39,14 +39,132 @@ func (fs *FirestoreStorage) Close() error {
 	return fs.client.Close()
 }
 
-// Todo operations
+// User operations
+func (fs *FirestoreStorage) CreateUser(ctx context.Context, user *models.User) error {
+	_, err := fs.client.Collection("users").Doc(user.ID).Set(ctx, user)
+	return err
+}
+
+func (fs *FirestoreStorage) GetUser(ctx context.Context, id string) (*models.User, error) {
+	doc, err := fs.client.Collection("users").Doc(id).Get(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var user models.User
+	if err := doc.DataTo(&user); err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}
+
+func (fs *FirestoreStorage) GetUserByGoogleID(ctx context.Context, googleID string) (*models.User, error) {
+	iter := fs.client.Collection("users").Where("google_id", "==", googleID).Documents(ctx)
+	defer iter.Stop()
+
+	doc, err := iter.Next()
+	if err != nil {
+		return nil, err
+	}
+
+	var user models.User
+	if err := doc.DataTo(&user); err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}
+
+func (fs *FirestoreStorage) UpdateUser(ctx context.Context, user *models.User) error {
+	_, err := fs.client.Collection("users").Doc(user.ID).Set(ctx, user)
+	return err
+}
+
+func (fs *FirestoreStorage) DeleteUser(ctx context.Context, id string) error {
+	// Delete all user data including memos and todos
+	batch := fs.client.Batch()
+
+	// Delete user document
+	userDoc := fs.client.Collection("users").Doc(id)
+	batch.Delete(userDoc)
+
+	// Delete user's memos
+	memoIter := fs.client.Collection("users").Doc(id).Collection("memos").Documents(ctx)
+	for {
+		doc, err := memoIter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		batch.Delete(doc.Ref)
+	}
+	memoIter.Stop()
+
+	// Delete user's todos
+	todoIter := fs.client.Collection("users").Doc(id).Collection("todos").Documents(ctx)
+	for {
+		doc, err := todoIter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		batch.Delete(doc.Ref)
+	}
+	todoIter.Stop()
+
+	// Commit batch
+	_, err := batch.Commit(ctx)
+	return err
+}
+
+// Device auth operations
+func (fs *FirestoreStorage) CreateDeviceAuthSession(ctx context.Context, session *models.DeviceAuthSession) error {
+	_, err := fs.client.Collection("device_auth_sessions").Doc(session.DeviceCode).Set(ctx, session)
+	return err
+}
+
+func (fs *FirestoreStorage) GetDeviceAuthSession(ctx context.Context, deviceCode string) (*models.DeviceAuthSession, error) {
+	doc, err := fs.client.Collection("device_auth_sessions").Doc(deviceCode).Get(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var session models.DeviceAuthSession
+	if err := doc.DataTo(&session); err != nil {
+		return nil, err
+	}
+
+	return &session, nil
+}
+
+func (fs *FirestoreStorage) UpdateDeviceAuthSession(ctx context.Context, session *models.DeviceAuthSession) error {
+	_, err := fs.client.Collection("device_auth_sessions").Doc(session.DeviceCode).Set(ctx, session)
+	return err
+}
+
+func (fs *FirestoreStorage) DeleteDeviceAuthSession(ctx context.Context, deviceCode string) error {
+	_, err := fs.client.Collection("device_auth_sessions").Doc(deviceCode).Delete(ctx)
+	return err
+}
+
+// Todo operations (updated for user isolation)
 func (fs *FirestoreStorage) CreateTodo(ctx context.Context, todo *models.Todo) error {
-	_, err := fs.client.Collection("todos").Doc(todo.ID).Set(ctx, todo)
+	_, err := fs.client.Collection("users").Doc(todo.UserID).Collection("todos").Doc(todo.ID).Set(ctx, todo)
 	return err
 }
 
 func (fs *FirestoreStorage) GetTodo(ctx context.Context, id string) (*models.Todo, error) {
-	doc, err := fs.client.Collection("todos").Doc(id).Get(ctx)
+	// Note: We need to search across all users since we only have the todo ID
+	// In practice, this should be called with user context to avoid this
+	iter := fs.client.CollectionGroup("todos").Where("id", "==", id).Documents(ctx)
+	defer iter.Stop()
+
+	doc, err := iter.Next()
 	if err != nil {
 		return nil, err
 	}
@@ -60,17 +178,24 @@ func (fs *FirestoreStorage) GetTodo(ctx context.Context, id string) (*models.Tod
 }
 
 func (fs *FirestoreStorage) UpdateTodo(ctx context.Context, todo *models.Todo) error {
-	_, err := fs.client.Collection("todos").Doc(todo.ID).Set(ctx, todo)
+	_, err := fs.client.Collection("users").Doc(todo.UserID).Collection("todos").Doc(todo.ID).Set(ctx, todo)
 	return err
 }
 
 func (fs *FirestoreStorage) DeleteTodo(ctx context.Context, id string) error {
-	_, err := fs.client.Collection("todos").Doc(id).Delete(ctx)
+	// Find the todo first to get the userID
+	todo, err := fs.GetTodo(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	_, err = fs.client.Collection("users").Doc(todo.UserID).Collection("todos").Doc(id).Delete(ctx)
 	return err
 }
 
 func (fs *FirestoreStorage) ListTodos(ctx context.Context, filters TodoFilters) ([]*models.Todo, error) {
-	query := fs.client.Collection("todos").Query
+	// User isolation: query within user's todos collection
+	query := fs.client.Collection("users").Doc(filters.UserID).Collection("todos").Query
 
 	// Apply filters
 	if filters.Status != nil {
@@ -130,14 +255,19 @@ func (fs *FirestoreStorage) ListTodos(ctx context.Context, filters TodoFilters) 
 	return todos, nil
 }
 
-// Memo operations
+// Memo operations (updated for user isolation)
 func (fs *FirestoreStorage) CreateMemo(ctx context.Context, memo *models.Memo) error {
-	_, err := fs.client.Collection("memos").Doc(memo.ID).Set(ctx, memo)
+	_, err := fs.client.Collection("users").Doc(memo.UserID).Collection("memos").Doc(memo.ID).Set(ctx, memo)
 	return err
 }
 
 func (fs *FirestoreStorage) GetMemo(ctx context.Context, id string) (*models.Memo, error) {
-	doc, err := fs.client.Collection("memos").Doc(id).Get(ctx)
+	// Note: We need to search across all users since we only have the memo ID
+	// In practice, this should be called with user context to avoid this
+	iter := fs.client.CollectionGroup("memos").Where("id", "==", id).Documents(ctx)
+	defer iter.Stop()
+
+	doc, err := iter.Next()
 	if err != nil {
 		return nil, err
 	}
@@ -151,17 +281,24 @@ func (fs *FirestoreStorage) GetMemo(ctx context.Context, id string) (*models.Mem
 }
 
 func (fs *FirestoreStorage) UpdateMemo(ctx context.Context, memo *models.Memo) error {
-	_, err := fs.client.Collection("memos").Doc(memo.ID).Set(ctx, memo)
+	_, err := fs.client.Collection("users").Doc(memo.UserID).Collection("memos").Doc(memo.ID).Set(ctx, memo)
 	return err
 }
 
 func (fs *FirestoreStorage) DeleteMemo(ctx context.Context, id string) error {
-	_, err := fs.client.Collection("memos").Doc(id).Delete(ctx)
+	// Find the memo first to get the userID
+	memo, err := fs.GetMemo(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	_, err = fs.client.Collection("users").Doc(memo.UserID).Collection("memos").Doc(id).Delete(ctx)
 	return err
 }
 
 func (fs *FirestoreStorage) ListMemos(ctx context.Context, filters MemoFilters) ([]*models.Memo, error) {
-	query := fs.client.Collection("memos").Query
+	// User isolation: query within user's memos collection
+	query := fs.client.Collection("users").Doc(filters.UserID).Collection("memos").Query
 
 	iter := query.Documents(ctx)
 	defer iter.Stop()
@@ -206,7 +343,7 @@ func (fs *FirestoreStorage) ListMemos(ctx context.Context, filters MemoFilters) 
 	return memos, nil
 }
 
-// Search operations
+// Search operations (updated for user isolation)
 func (fs *FirestoreStorage) Search(ctx context.Context, query string, filters SearchFilters) (*SearchResults, error) {
 	results := &SearchResults{
 		Todos: []*models.Todo{},
@@ -215,7 +352,7 @@ func (fs *FirestoreStorage) Search(ctx context.Context, query string, filters Se
 
 	// Search todos if needed
 	if filters.Type == "todo" || filters.Type == "all" {
-		todos, err := fs.searchTodos(ctx, query, filters.Tags)
+		todos, err := fs.searchTodos(ctx, query, filters.UserID, filters.Tags)
 		if err != nil {
 			return nil, err
 		}
@@ -224,7 +361,7 @@ func (fs *FirestoreStorage) Search(ctx context.Context, query string, filters Se
 
 	// Search memos if needed
 	if filters.Type == "memo" || filters.Type == "all" {
-		memos, err := fs.searchMemos(ctx, query, filters.Tags)
+		memos, err := fs.searchMemos(ctx, query, filters.UserID, filters.Tags)
 		if err != nil {
 			return nil, err
 		}
@@ -234,8 +371,9 @@ func (fs *FirestoreStorage) Search(ctx context.Context, query string, filters Se
 	return results, nil
 }
 
-func (fs *FirestoreStorage) searchTodos(ctx context.Context, query string, tags []string) ([]*models.Todo, error) {
-	iter := fs.client.Collection("todos").Documents(ctx)
+func (fs *FirestoreStorage) searchTodos(ctx context.Context, query string, userID string, tags []string) ([]*models.Todo, error) {
+	// User isolation: search within user's todos collection only
+	iter := fs.client.Collection("users").Doc(userID).Collection("todos").Documents(ctx)
 	defer iter.Stop()
 
 	var todos []*models.Todo
@@ -287,8 +425,9 @@ func (fs *FirestoreStorage) searchTodos(ctx context.Context, query string, tags 
 	return todos, nil
 }
 
-func (fs *FirestoreStorage) searchMemos(ctx context.Context, query string, tags []string) ([]*models.Memo, error) {
-	iter := fs.client.Collection("memos").Documents(ctx)
+func (fs *FirestoreStorage) searchMemos(ctx context.Context, query string, userID string, tags []string) ([]*models.Memo, error) {
+	// User isolation: search within user's memos collection only
+	iter := fs.client.Collection("users").Doc(userID).Collection("memos").Documents(ctx)
 	defer iter.Stop()
 
 	var memos []*models.Memo
@@ -340,12 +479,12 @@ func (fs *FirestoreStorage) searchMemos(ctx context.Context, query string, tags 
 	return memos, nil
 }
 
-// GetAllTags retrieves all unique tags from both todos and memos
-func (fs *FirestoreStorage) GetAllTags(ctx context.Context) ([]string, error) {
+// GetAllTags retrieves all unique tags from both todos and memos for a specific user
+func (fs *FirestoreStorage) GetAllTags(ctx context.Context, userID string) ([]string, error) {
 	tagSet := make(map[string]bool)
 
-	// Get tags from todos
-	todoIter := fs.client.Collection("todos").Documents(ctx)
+	// Get tags from user's todos
+	todoIter := fs.client.Collection("users").Doc(userID).Collection("todos").Documents(ctx)
 	for {
 		doc, err := todoIter.Next()
 		if err == iterator.Done {
@@ -368,8 +507,8 @@ func (fs *FirestoreStorage) GetAllTags(ctx context.Context) ([]string, error) {
 	}
 	todoIter.Stop()
 
-	// Get tags from memos
-	memoIter := fs.client.Collection("memos").Documents(ctx)
+	// Get tags from user's memos
+	memoIter := fs.client.Collection("users").Doc(userID).Collection("memos").Documents(ctx)
 	for {
 		doc, err := memoIter.Next()
 		if err == iterator.Done {

@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/pankona/memoya/internal/auth"
 	generatedServer "github.com/pankona/memoya/internal/generated/server"
 	"github.com/pankona/memoya/internal/server"
 	"github.com/pankona/memoya/internal/storage"
@@ -34,8 +35,20 @@ func main() {
 	}
 	defer storage.Close()
 
+	// Initialize OAuth settings (hardcoded for memoya)
+	oauthClientID := os.Getenv("OAUTH_CLIENT_ID")
+	oauthClientSecret := os.Getenv("OAUTH_CLIENT_SECRET")
+
+	// Validate OAuth configuration
+	if oauthClientID == "" || oauthClientSecret == "" {
+		log.Fatal("OAuth configuration required: OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET environment variables must be set")
+	}
+
+	// Initialize device flow service
+	deviceFlowService := auth.NewDeviceFlowService(storage, oauthClientID, oauthClientSecret)
+
 	// Create server implementation
-	serverImpl := server.NewServer(ctx, storage)
+	serverImpl := server.NewServerWithAuth(ctx, storage, deviceFlowService)
 
 	// Create router
 	r := chi.NewRouter()

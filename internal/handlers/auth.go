@@ -4,253 +4,382 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/pankona/memoya/internal/auth"
-	"github.com/pankona/memoya/internal/models"
-	"github.com/pankona/memoya/internal/storage"
 )
 
-type AuthHandler struct {
-	deviceFlowService *auth.DeviceFlowService
-	storage           storage.Storage
+// HTTPAuthClient interface for making authentication requests
+type HTTPAuthClient interface {
+	CallTool(ctx context.Context, toolName string, args interface{}) ([]byte, error)
 }
 
-func NewAuthHandler(storage storage.Storage, clientID, clientSecret string) *AuthHandler {
-	deviceFlowService := auth.NewDeviceFlowService(storage, clientID, clientSecret)
+type AuthHandler struct {
+	httpClient    HTTPAuthClient
+	configManager *ConfigManager
+}
+
+func NewAuthHandler(httpClient HTTPAuthClient) *AuthHandler {
 	return &AuthHandler{
-		deviceFlowService: deviceFlowService,
-		storage:           storage,
+		httpClient:    httpClient,
+		configManager: NewConfigManager(),
 	}
 }
 
-// DeviceAuthStartArgs represents arguments for starting device authentication
-type DeviceAuthStartArgs struct {
-	// No arguments needed for starting device flow
-}
+type AuthStartArgs struct{}
 
-// DeviceAuthStartResult represents the result of starting device authentication
-type DeviceAuthStartResult struct {
+type AuthStartResult struct {
 	Success         bool   `json:"success"`
-	DeviceCode      string `json:"device_code"`
-	UserCode        string `json:"user_code"`
-	VerificationURI string `json:"verification_uri"`
-	ExpiresIn       int    `json:"expires_in"`
+	DeviceCode      string `json:"device_code,omitempty"`
+	UserCode        string `json:"user_code,omitempty"`
+	VerificationURL string `json:"verification_url,omitempty"`
+	ExpiresIn       int    `json:"expires_in,omitempty"`
 	Message         string `json:"message"`
 }
 
-func (h *AuthHandler) StartDeviceAuth(ctx context.Context, ss *mcp.ServerSession, params *mcp.CallToolParamsFor[DeviceAuthStartArgs]) (*mcp.CallToolResultFor[DeviceAuthStartResult], error) {
-	if h.deviceFlowService == nil {
-		return nil, fmt.Errorf("device flow service not initialized")
-	}
-
-	// Start device flow
-	session, err := h.deviceFlowService.StartDeviceFlow(ctx)
+func (h *AuthHandler) Start(ctx context.Context, ss *mcp.ServerSession, params *mcp.CallToolParamsFor[AuthStartArgs]) (*mcp.CallToolResultFor[AuthStartResult], error) {
+	// Call server's device auth start endpoint
+	respData, err := h.httpClient.CallTool(ctx, "device_auth_start", struct{}{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to start device flow: %w", err)
+		result := AuthStartResult{
+			Success: false,
+			Message: fmt.Sprintf("Failed to start authentication: %v", err),
+		}
+
+		jsonBytes, _ := json.Marshal(result)
+		return &mcp.CallToolResultFor[AuthStartResult]{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: string(jsonBytes)},
+			},
+		}, nil
 	}
 
-	// Calculate expires_in from ExpiresAt
-	expiresIn := int(time.Until(session.ExpiresAt).Seconds())
+	// Parse server response
+	var serverResp struct {
+		Success         bool   `json:"success"`
+		DeviceCode      string `json:"device_code"`
+		UserCode        string `json:"user_code"`
+		VerificationURL string `json:"verification_url"`
+		ExpiresIn       int    `json:"expires_in"`
+		Message         string `json:"message"`
+	}
 
-	result := DeviceAuthStartResult{
+	if err := json.Unmarshal(respData, &serverResp); err != nil {
+		result := AuthStartResult{
+			Success: false,
+			Message: "Failed to parse server response",
+		}
+
+		jsonBytes, _ := json.Marshal(result)
+		return &mcp.CallToolResultFor[AuthStartResult]{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: string(jsonBytes)},
+			},
+		}, nil
+	}
+
+	if !serverResp.Success {
+		result := AuthStartResult{
+			Success: false,
+			Message: serverResp.Message,
+		}
+
+		jsonBytes, _ := json.Marshal(result)
+		return &mcp.CallToolResultFor[AuthStartResult]{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: string(jsonBytes)},
+			},
+		}, nil
+	}
+
+	// Store device code temporarily in config
+	config, err := h.configManager.Load()
+	if err != nil {
+		config = &Config{}
+	}
+
+	config.PendingAuth = &PendingAuth{
+		DeviceCode: serverResp.DeviceCode,
+		StartedAt:  time.Now(),
+		ExpiresAt:  time.Now().Add(time.Duration(serverResp.ExpiresIn) * time.Second),
+	}
+
+	if err := h.configManager.Save(config); err != nil {
+		// Continue even if we can't save the pending auth
+		fmt.Printf("Warning: Failed to save pending auth: %v\n", err)
+	}
+
+	result := AuthStartResult{
 		Success:         true,
-		DeviceCode:      session.DeviceCode,
-		UserCode:        session.UserCode,
-		VerificationURI: session.VerificationURI,
-		ExpiresIn:       expiresIn,
-		Message:         fmt.Sprintf("Please visit %s and enter code: %s", session.VerificationURI, session.UserCode),
+		DeviceCode:      serverResp.DeviceCode,
+		UserCode:        serverResp.UserCode,
+		VerificationURL: serverResp.VerificationURL,
+		ExpiresIn:       serverResp.ExpiresIn,
+		Message:         fmt.Sprintf("Please visit %s and enter code: %s", serverResp.VerificationURL, serverResp.UserCode),
 	}
 
-	// Convert to JSON
-	jsonBytes, err := json.Marshal(result)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal result: %w", err)
-	}
-
-	return &mcp.CallToolResultFor[DeviceAuthStartResult]{
+	jsonBytes, _ := json.Marshal(result)
+	return &mcp.CallToolResultFor[AuthStartResult]{
 		Content: []mcp.Content{
 			&mcp.TextContent{Text: string(jsonBytes)},
 		},
 	}, nil
 }
 
-// DeviceAuthPollArgs represents arguments for polling device authentication
-type DeviceAuthPollArgs struct {
-	DeviceCode string `json:"device_code"`
+type AuthStatusArgs struct{}
+
+type AuthStatusResult struct {
+	Success       bool   `json:"success"`
+	Authenticated bool   `json:"authenticated"`
+	Token         string `json:"token,omitempty"`
+	ExpiresAt     string `json:"expires_at,omitempty"`
+	Message       string `json:"message"`
 }
 
-// DeviceAuthPollResult represents the result of polling device authentication
-type DeviceAuthPollResult struct {
-	Success bool         `json:"success"`
-	Status  string       `json:"status"` // "pending", "authorized", "expired"
-	User    *models.User `json:"user,omitempty"`
-	Token   string       `json:"token,omitempty"`
-	Message string       `json:"message"`
-}
+func (h *AuthHandler) Status(ctx context.Context, ss *mcp.ServerSession, params *mcp.CallToolParamsFor[AuthStatusArgs]) (*mcp.CallToolResultFor[AuthStatusResult], error) {
+	config, err := h.configManager.Load()
+	if err != nil {
+		result := AuthStatusResult{
+			Success:       false,
+			Authenticated: false,
+			Message:       "No authentication information found",
+		}
 
-func (h *AuthHandler) PollDeviceAuth(ctx context.Context, ss *mcp.ServerSession, params *mcp.CallToolParamsFor[DeviceAuthPollArgs]) (*mcp.CallToolResultFor[DeviceAuthPollResult], error) {
-	args := params.Arguments
-
-	if h.deviceFlowService == nil {
-		return nil, fmt.Errorf("device flow service not initialized")
+		jsonBytes, _ := json.Marshal(result)
+		return &mcp.CallToolResultFor[AuthStatusResult]{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: string(jsonBytes)},
+			},
+		}, nil
 	}
 
-	// Poll for token
-	user, token, err := h.deviceFlowService.PollToken(ctx, args.DeviceCode)
-	if err != nil {
-		// Check if it's just pending
-		if err.Error() == "authorization pending" {
-			result := DeviceAuthPollResult{
-				Success: true,
-				Status:  "pending",
-				Message: "Authorization still pending",
+	// Check if we have a valid token
+	if config.AuthToken != "" && config.TokenExpiresAt != nil && config.TokenExpiresAt.After(time.Now()) {
+		result := AuthStatusResult{
+			Success:       true,
+			Authenticated: true,
+			Token:         config.AuthToken,
+			ExpiresAt:     config.TokenExpiresAt.Format(time.RFC3339),
+			Message:       "Authenticated",
+		}
+
+		jsonBytes, _ := json.Marshal(result)
+		return &mcp.CallToolResultFor[AuthStatusResult]{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: string(jsonBytes)},
+			},
+		}, nil
+	}
+
+	// Check if there's a pending auth
+	if config.PendingAuth != nil && config.PendingAuth.ExpiresAt.After(time.Now()) {
+		// Poll server for the result
+		pollArgs := struct {
+			DeviceCode string `json:"device_code"`
+		}{
+			DeviceCode: config.PendingAuth.DeviceCode,
+		}
+
+		respData, err := h.httpClient.CallTool(ctx, "device_auth_poll", pollArgs)
+		if err != nil {
+			result := AuthStatusResult{
+				Success:       false,
+				Authenticated: false,
+				Message:       fmt.Sprintf("Failed to check authentication status: %v", err),
 			}
+
 			jsonBytes, _ := json.Marshal(result)
-			return &mcp.CallToolResultFor[DeviceAuthPollResult]{
+			return &mcp.CallToolResultFor[AuthStatusResult]{
 				Content: []mcp.Content{
 					&mcp.TextContent{Text: string(jsonBytes)},
 				},
 			}, nil
 		}
 
-		// Check if expired
-		if err.Error() == "device auth session expired" {
-			result := DeviceAuthPollResult{
-				Success: false,
-				Status:  "expired",
-				Message: "Device authentication session has expired",
+		// Parse server response
+		var serverResp struct {
+			Success       bool   `json:"success"`
+			Authenticated bool   `json:"authenticated"`
+			Token         string `json:"token,omitempty"`
+			Message       string `json:"message"`
+			Pending       bool   `json:"pending,omitempty"`
+		}
+
+		if err := json.Unmarshal(respData, &serverResp); err != nil {
+			result := AuthStatusResult{
+				Success:       false,
+				Authenticated: false,
+				Message:       "Failed to parse server response",
 			}
+
 			jsonBytes, _ := json.Marshal(result)
-			return &mcp.CallToolResultFor[DeviceAuthPollResult]{
+			return &mcp.CallToolResultFor[AuthStatusResult]{
 				Content: []mcp.Content{
 					&mcp.TextContent{Text: string(jsonBytes)},
 				},
 			}, nil
 		}
 
-		return nil, fmt.Errorf("failed to poll device auth: %w", err)
+		if serverResp.Pending {
+			result := AuthStatusResult{
+				Success:       true,
+				Authenticated: false,
+				Message:       "Waiting for user authorization. Please complete the authentication in your browser.",
+			}
+
+			jsonBytes, _ := json.Marshal(result)
+			return &mcp.CallToolResultFor[AuthStatusResult]{
+				Content: []mcp.Content{
+					&mcp.TextContent{Text: string(jsonBytes)},
+				},
+			}, nil
+		}
+
+		if !serverResp.Success || !serverResp.Authenticated {
+			// Clear the pending auth
+			config.PendingAuth = nil
+			h.configManager.Save(config)
+
+			result := AuthStatusResult{
+				Success:       false,
+				Authenticated: false,
+				Message:       serverResp.Message,
+			}
+
+			jsonBytes, _ := json.Marshal(result)
+			return &mcp.CallToolResultFor[AuthStatusResult]{
+				Content: []mcp.Content{
+					&mcp.TextContent{Text: string(jsonBytes)},
+				},
+			}, nil
+		}
+
+		// Success! Save the token
+		config.AuthToken = serverResp.Token
+		expiresAt := time.Now().Add(24 * time.Hour) // JWT tokens expire in 24 hours
+		config.TokenExpiresAt = &expiresAt
+		config.PendingAuth = nil
+
+		if err := h.configManager.Save(config); err != nil {
+			result := AuthStatusResult{
+				Success:       false,
+				Authenticated: false,
+				Message:       fmt.Sprintf("Failed to save authentication token: %v", err),
+			}
+
+			jsonBytes, _ := json.Marshal(result)
+			return &mcp.CallToolResultFor[AuthStatusResult]{
+				Content: []mcp.Content{
+					&mcp.TextContent{Text: string(jsonBytes)},
+				},
+			}, nil
+		}
+
+		result := AuthStatusResult{
+			Success:       true,
+			Authenticated: true,
+			Token:         serverResp.Token,
+			ExpiresAt:     expiresAt.Format(time.RFC3339),
+			Message:       "Authentication successful!",
+		}
+
+		jsonBytes, _ := json.Marshal(result)
+		return &mcp.CallToolResultFor[AuthStatusResult]{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: string(jsonBytes)},
+			},
+		}, nil
 	}
 
-	result := DeviceAuthPollResult{
-		Success: true,
-		Status:  "authorized",
-		User:    user,
-		Token:   token,
-		Message: fmt.Sprintf("Authentication successful for user %s", user.ID),
+	// No valid token and no pending auth
+	result := AuthStatusResult{
+		Success:       true,
+		Authenticated: false,
+		Message:       "Not authenticated. Use auth_start to begin authentication.",
 	}
 
-	// Convert to JSON
-	jsonBytes, err := json.Marshal(result)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal result: %w", err)
-	}
-
-	return &mcp.CallToolResultFor[DeviceAuthPollResult]{
+	jsonBytes, _ := json.Marshal(result)
+	return &mcp.CallToolResultFor[AuthStatusResult]{
 		Content: []mcp.Content{
 			&mcp.TextContent{Text: string(jsonBytes)},
 		},
 	}, nil
 }
 
-// UserInfoArgs represents arguments for getting user information
-type UserInfoArgs struct {
-	// No arguments needed - user ID comes from JWT token context
+// ConfigManager handles reading and writing configuration to XDG config directory
+type ConfigManager struct {
+	configPath string
 }
 
-// UserInfoResult represents the result of getting user information
-type UserInfoResult struct {
-	Success bool         `json:"success"`
-	User    *models.User `json:"user,omitempty"`
-	Message string       `json:"message"`
+type Config struct {
+	AuthToken      string       `json:"auth_token,omitempty"`
+	TokenExpiresAt *time.Time   `json:"token_expires_at,omitempty"`
+	PendingAuth    *PendingAuth `json:"pending_auth,omitempty"`
 }
 
-func (h *AuthHandler) GetUserInfo(ctx context.Context, ss *mcp.ServerSession, params *mcp.CallToolParamsFor[UserInfoArgs]) (*mcp.CallToolResultFor[UserInfoResult], error) {
-	if h.storage == nil {
-		return nil, fmt.Errorf("storage not initialized")
-	}
-
-	// Get user ID from context (set by auth middleware)
-	userID, err := auth.RequireAuth(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("authentication required: %w", err)
-	}
-
-	// Get user data
-	user, err := h.storage.GetUser(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user: %w", err)
-	}
-
-	result := UserInfoResult{
-		Success: true,
-		User:    user,
-		Message: "User information retrieved successfully",
-	}
-
-	// Convert to JSON
-	jsonBytes, err := json.Marshal(result)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal result: %w", err)
-	}
-
-	return &mcp.CallToolResultFor[UserInfoResult]{
-		Content: []mcp.Content{
-			&mcp.TextContent{Text: string(jsonBytes)},
-		},
-	}, nil
+type PendingAuth struct {
+	DeviceCode string    `json:"device_code"`
+	StartedAt  time.Time `json:"started_at"`
+	ExpiresAt  time.Time `json:"expires_at"`
 }
 
-// AccountDeleteArgs represents arguments for deleting user account
-type AccountDeleteArgs struct {
-	Confirm bool `json:"confirm"`
+func NewConfigManager() *ConfigManager {
+	return &ConfigManager{}
 }
 
-// AccountDeleteResult represents the result of deleting user account
-type AccountDeleteResult struct {
-	Success bool   `json:"success"`
-	Message string `json:"message"`
+func (c *ConfigManager) getConfigPath() string {
+	if c.configPath != "" {
+		return c.configPath
+	}
+
+	// Get XDG config directory
+	configDir := getXDGConfigDir()
+	c.configPath = filepath.Join(configDir, "memoya", "auth.json")
+	return c.configPath
 }
 
-func (h *AuthHandler) DeleteAccount(ctx context.Context, ss *mcp.ServerSession, params *mcp.CallToolParamsFor[AccountDeleteArgs]) (*mcp.CallToolResultFor[AccountDeleteResult], error) {
-	args := params.Arguments
+func (c *ConfigManager) Load() (*Config, error) {
+	configPath := c.getConfigPath()
 
-	if h.storage == nil {
-		return nil, fmt.Errorf("storage not initialized")
-	}
-
-	// Get user ID from context (set by auth middleware)
-	userID, err := auth.RequireAuth(ctx)
+	data, err := readFile(configPath)
 	if err != nil {
-		return nil, fmt.Errorf("authentication required: %w", err)
+		return nil, err
 	}
 
-	// Require explicit confirmation
-	if !args.Confirm {
-		return nil, fmt.Errorf("account deletion requires explicit confirmation")
+	var config Config
+	if err := json.Unmarshal(data, &config); err != nil {
+		return nil, fmt.Errorf("failed to parse config: %w", err)
 	}
 
-	// Delete all user data including memos, todos, and user record
-	err = h.storage.DeleteUser(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to delete user data: %w", err)
-	}
-
-	result := AccountDeleteResult{
-		Success: true,
-		Message: "Account and all associated data deleted successfully",
-	}
-
-	// Convert to JSON
-	jsonBytes, err := json.Marshal(result)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal result: %w", err)
-	}
-
-	return &mcp.CallToolResultFor[AccountDeleteResult]{
-		Content: []mcp.Content{
-			&mcp.TextContent{Text: string(jsonBytes)},
-		},
-	}, nil
+	return &config, nil
 }
+
+func (c *ConfigManager) Save(config *Config) error {
+	configPath := c.getConfigPath()
+
+	// Ensure directory exists
+	dir := filepath.Dir(configPath)
+	if err := createDir(dir); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	data, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	if err := writeFile(configPath, data); err != nil {
+		return fmt.Errorf("failed to write config: %w", err)
+	}
+
+	return nil
+}
+
+// Platform-specific functions (will be implemented in separate files)
+var (
+	getXDGConfigDir = getXDGConfigDirDefault
+	readFile        = readFileDefault
+	writeFile       = writeFileDefault
+	createDir       = createDirDefault
+)

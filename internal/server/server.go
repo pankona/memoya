@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/pankona/memoya/internal/auth"
 	"github.com/pankona/memoya/internal/config"
 	"github.com/pankona/memoya/internal/generated/server"
 	"github.com/pankona/memoya/internal/handlers"
@@ -18,11 +19,12 @@ import (
 
 // Server implements the generated ServerInterface
 type Server struct {
-	memoHandler   *handlers.MemoHandler
-	todoHandler   *handlers.TodoHandler
-	searchHandler *handlers.SearchHandler
-	tagHandler    *handlers.TagHandler
-	authHandler   *handlers.AuthHandler
+	memoHandler       *handlers.MemoHandler
+	todoHandler       *handlers.TodoHandler
+	searchHandler     *handlers.SearchHandler
+	tagHandler        *handlers.TagHandler
+	authHandler       *handlers.AuthHandler
+	deviceFlowService *auth.DeviceFlowService
 }
 
 // NewServer creates a new server instance
@@ -36,19 +38,31 @@ func NewServer(ctx context.Context, storage storage.Storage) *Server {
 	// Get OAuth credentials from environment variables or Secret Manager
 	credentials, err := config.GetOAuthCredentials(ctx, projectID)
 	if err != nil {
-		log.Printf("Warning: Failed to get OAuth credentials: %v. Using fallback values.", err)
-		credentials = &config.OAuthCredentials{
-			ClientID:     "memoya-client-id",
-			ClientSecret: "memoya-client-secret",
-		}
+		log.Fatalf("OAuth configuration required: %v", err)
 	}
 
+	// Create device flow service
+	deviceFlowService := auth.NewDeviceFlowService(storage, credentials.ClientID, credentials.ClientSecret)
+
 	return &Server{
-		memoHandler:   handlers.NewMemoHandlerWithStorage(storage),
-		todoHandler:   handlers.NewTodoHandlerWithStorage(storage),
-		searchHandler: handlers.NewSearchHandler(storage),
-		tagHandler:    handlers.NewTagHandler(storage),
-		authHandler:   handlers.NewAuthHandler(storage, credentials.ClientID, credentials.ClientSecret),
+		memoHandler:       handlers.NewMemoHandlerWithStorage(storage),
+		todoHandler:       handlers.NewTodoHandlerWithStorage(storage),
+		searchHandler:     handlers.NewSearchHandler(storage),
+		tagHandler:        handlers.NewTagHandler(storage),
+		authHandler:       nil, // Auth handled directly via DeviceFlowService
+		deviceFlowService: deviceFlowService,
+	}
+}
+
+// NewServerWithAuth creates a new server instance with provided auth service
+func NewServerWithAuth(ctx context.Context, storage storage.Storage, deviceFlowService *auth.DeviceFlowService) *Server {
+	return &Server{
+		memoHandler:       handlers.NewMemoHandlerWithStorage(storage),
+		todoHandler:       handlers.NewTodoHandlerWithStorage(storage),
+		searchHandler:     handlers.NewSearchHandler(storage),
+		tagHandler:        handlers.NewTagHandler(storage),
+		authHandler:       nil, // Will add auth handler methods directly to server
+		deviceFlowService: deviceFlowService,
 	}
 }
 

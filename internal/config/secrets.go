@@ -72,13 +72,13 @@ func GetOAuthCredentials(ctx context.Context, projectID string) (*OAuthCredentia
 	}
 
 	// If environment variables are not set, try Secret Manager (for production)
+	if projectID == "" {
+		return nil, fmt.Errorf("OAuth credentials not found: OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET environment variables are not set, and PROJECT_ID is not specified for Secret Manager")
+	}
+
 	sm, err := NewSecretManager(ctx, projectID)
 	if err != nil {
-		// Fall back to default values if Secret Manager is not available
-		return &OAuthCredentials{
-			ClientID:     "memoya-client-id",
-			ClientSecret: "memoya-client-secret",
-		}, nil
+		return nil, fmt.Errorf("OAuth credentials not found: environment variables not set and Secret Manager unavailable: %w", err)
 	}
 	defer sm.Close()
 
@@ -86,19 +86,17 @@ func GetOAuthCredentials(ctx context.Context, projectID string) (*OAuthCredentia
 	if clientID == "" {
 		clientID, err = sm.GetSecret(ctx, "oauth-client-id")
 		if err != nil {
-			clientID = "memoya-client-id" // Fallback
-		} else {
-			clientID = strings.TrimSpace(clientID) // Remove whitespace and newlines
+			return nil, fmt.Errorf("OAuth Client ID not found in environment variables or Secret Manager: %w", err)
 		}
+		clientID = strings.TrimSpace(clientID) // Remove whitespace and newlines
 	}
 
 	if clientSecret == "" {
 		clientSecret, err = sm.GetSecret(ctx, "oauth-client-secret")
 		if err != nil {
-			clientSecret = "memoya-client-secret" // Fallback
-		} else {
-			clientSecret = strings.TrimSpace(clientSecret) // Remove whitespace and newlines
+			return nil, fmt.Errorf("OAuth Client Secret not found in environment variables or Secret Manager: %w", err)
 		}
+		clientSecret = strings.TrimSpace(clientSecret) // Remove whitespace and newlines
 	}
 
 	return &OAuthCredentials{

@@ -8,6 +8,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/pankona/memoya/internal/client"
+	"github.com/pankona/memoya/internal/handlers"
 )
 
 func main() {
@@ -19,18 +20,29 @@ func main() {
 	// Get Cloud Run URL from environment
 	cloudRunURL := os.Getenv("MEMOYA_CLOUD_RUN_URL")
 	if cloudRunURL == "" {
-		// Default to localhost for development
-		cloudRunURL = "http://localhost:8080"
+		// Default to production Cloud Run URL
+		cloudRunURL = "https://memoya-server-152455917187.asia-northeast1.run.app"
 		log.Printf("Using default Cloud Run URL: %s", cloudRunURL)
 	} else {
-		log.Printf("Using Cloud Run URL: %s", cloudRunURL)
+		log.Printf("Using Cloud Run URL from environment: %s", cloudRunURL)
 	}
 
 	// Initialize HTTP client
 	httpClient := client.NewHTTPClient(cloudRunURL)
 
-	// Set auth token if available
-	if authToken := os.Getenv("MEMOYA_AUTH_TOKEN"); authToken != "" {
+	// Set auth token from environment or saved config
+	authToken := os.Getenv("MEMOYA_AUTH_TOKEN")
+	if authToken == "" {
+		// Try to load from saved config
+		if savedToken, err := handlers.GetAuthToken(); err == nil && savedToken != "" {
+			authToken = savedToken
+			log.Println("Using saved auth token")
+		}
+	} else {
+		log.Println("Using auth token from environment")
+	}
+
+	if authToken != "" {
 		httpClient.SetAuthToken(authToken)
 		log.Println("Auth token configured")
 	}
@@ -48,6 +60,9 @@ func main() {
 
 	// Create MCP server
 	server := mcp.NewServer("memoya", "0.1.0", nil)
+
+	// Create auth handler using HTTP client
+	authHandler := handlers.NewAuthHandler(httpClient)
 
 	// Register memo tools (HTTP-backed)
 	server.AddTools(
@@ -160,6 +175,22 @@ func main() {
 			"tag_list",
 			"List all unique tags from todos and memos",
 			bridge.TagList,
+			mcp.Input(),
+		),
+	)
+
+	// Register auth tools (HTTP-backed)
+	server.AddTools(
+		mcp.NewServerTool(
+			"auth_start",
+			"Start authentication process for memoya",
+			authHandler.Start,
+			mcp.Input(),
+		),
+		mcp.NewServerTool(
+			"auth_status",
+			"Check authentication status and retrieve auth token",
+			authHandler.Status,
 			mcp.Input(),
 		),
 	)

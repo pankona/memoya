@@ -103,6 +103,11 @@ func (c *HTTPClient) makeRequest(ctx context.Context, method, url string, args i
 
 	// Check HTTP status
 	if resp.StatusCode >= 400 {
+		// Handle authentication errors specially
+		if resp.StatusCode == 401 {
+			return nil, fmt.Errorf("AUTHENTICATION_REQUIRED: %s. Use auth_start to authenticate with memoya", string(body))
+		}
+
 		// Try to parse error response
 		var errorResp struct {
 			Success bool   `json:"success"`

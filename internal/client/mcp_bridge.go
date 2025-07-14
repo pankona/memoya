@@ -2,7 +2,9 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/pankona/memoya/internal/handlers"
@@ -20,6 +22,45 @@ func NewMCPBridge(httpClient *HTTPClient) *MCPBridge {
 	}
 }
 
+// handleError converts HTTP errors into structured JSON responses for MCP
+func (b *MCPBridge) handleError(err error) []byte {
+	errorMsg := err.Error()
+
+	// Check if it's an authentication error
+	if strings.Contains(errorMsg, "AUTHENTICATION_REQUIRED") {
+		response := map[string]interface{}{
+			"success":       false,
+			"authenticated": false,
+			"error":         "Authentication required",
+			"message":       "Authentication is required to use memoya. Please run the 'auth_start' tool to authenticate.",
+			"suggestion":    "Use the auth_start tool to begin the authentication process.",
+		}
+		jsonBytes, _ := json.Marshal(response)
+		return jsonBytes
+	}
+
+	// Check if it's an OAuth configuration error
+	if strings.Contains(errorMsg, "OAuth") && strings.Contains(errorMsg, "not found") {
+		response := map[string]interface{}{
+			"success": false,
+			"error":   "OAuth configuration missing",
+			"message": "The memoya server is not properly configured. Please contact the administrator to set up OAuth credentials.",
+			"details": "This is a server-side configuration issue that requires administrator attention.",
+		}
+		jsonBytes, _ := json.Marshal(response)
+		return jsonBytes
+	}
+
+	// Generic error response
+	response := map[string]interface{}{
+		"success": false,
+		"error":   errorMsg,
+		"message": fmt.Sprintf("Operation failed: %s", errorMsg),
+	}
+	jsonBytes, _ := json.Marshal(response)
+	return jsonBytes
+}
+
 // Memo operations
 
 func (b *MCPBridge) MemoCreate(ctx context.Context, ss *mcp.ServerSession,
@@ -27,7 +68,13 @@ func (b *MCPBridge) MemoCreate(ctx context.Context, ss *mcp.ServerSession,
 
 	respData, err := b.httpClient.CallTool(ctx, "memo_create", params.Arguments)
 	if err != nil {
-		return nil, fmt.Errorf("memo_create failed: %w", err)
+		// Return structured error response instead of failing
+		errorData := b.handleError(err)
+		return &mcp.CallToolResultFor[handlers.MemoResult]{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: string(errorData)},
+			},
+		}, nil
 	}
 
 	return &mcp.CallToolResultFor[handlers.MemoResult]{
@@ -42,7 +89,12 @@ func (b *MCPBridge) MemoList(ctx context.Context, ss *mcp.ServerSession,
 
 	respData, err := b.httpClient.CallTool(ctx, "memo_list", params.Arguments)
 	if err != nil {
-		return nil, fmt.Errorf("memo_list failed: %w", err)
+		errorData := b.handleError(err)
+		return &mcp.CallToolResultFor[handlers.MemoListResult]{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: string(errorData)},
+			},
+		}, nil
 	}
 
 	return &mcp.CallToolResultFor[handlers.MemoListResult]{
@@ -57,7 +109,12 @@ func (b *MCPBridge) MemoUpdate(ctx context.Context, ss *mcp.ServerSession,
 
 	respData, err := b.httpClient.CallTool(ctx, "memo_update", params.Arguments)
 	if err != nil {
-		return nil, fmt.Errorf("memo_update failed: %w", err)
+		errorData := b.handleError(err)
+		return &mcp.CallToolResultFor[handlers.MemoResult]{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: string(errorData)},
+			},
+		}, nil
 	}
 
 	return &mcp.CallToolResultFor[handlers.MemoResult]{
@@ -72,7 +129,12 @@ func (b *MCPBridge) MemoDelete(ctx context.Context, ss *mcp.ServerSession,
 
 	respData, err := b.httpClient.CallTool(ctx, "memo_delete", params.Arguments)
 	if err != nil {
-		return nil, fmt.Errorf("memo_delete failed: %w", err)
+		errorData := b.handleError(err)
+		return &mcp.CallToolResultFor[handlers.MemoDeleteResult]{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: string(errorData)},
+			},
+		}, nil
 	}
 
 	return &mcp.CallToolResultFor[handlers.MemoDeleteResult]{
@@ -89,7 +151,12 @@ func (b *MCPBridge) TodoCreate(ctx context.Context, ss *mcp.ServerSession,
 
 	respData, err := b.httpClient.CallTool(ctx, "todo_create", params.Arguments)
 	if err != nil {
-		return nil, fmt.Errorf("todo_create failed: %w", err)
+		errorData := b.handleError(err)
+		return &mcp.CallToolResultFor[handlers.TodoResult]{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: string(errorData)},
+			},
+		}, nil
 	}
 
 	return &mcp.CallToolResultFor[handlers.TodoResult]{
@@ -104,7 +171,12 @@ func (b *MCPBridge) TodoList(ctx context.Context, ss *mcp.ServerSession,
 
 	respData, err := b.httpClient.CallTool(ctx, "todo_list", params.Arguments)
 	if err != nil {
-		return nil, fmt.Errorf("todo_list failed: %w", err)
+		errorData := b.handleError(err)
+		return &mcp.CallToolResultFor[handlers.TodoListResult]{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: string(errorData)},
+			},
+		}, nil
 	}
 
 	return &mcp.CallToolResultFor[handlers.TodoListResult]{
@@ -119,7 +191,12 @@ func (b *MCPBridge) TodoUpdate(ctx context.Context, ss *mcp.ServerSession,
 
 	respData, err := b.httpClient.CallTool(ctx, "todo_update", params.Arguments)
 	if err != nil {
-		return nil, fmt.Errorf("todo_update failed: %w", err)
+		errorData := b.handleError(err)
+		return &mcp.CallToolResultFor[handlers.TodoResult]{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: string(errorData)},
+			},
+		}, nil
 	}
 
 	return &mcp.CallToolResultFor[handlers.TodoResult]{
@@ -134,7 +211,12 @@ func (b *MCPBridge) TodoDelete(ctx context.Context, ss *mcp.ServerSession,
 
 	respData, err := b.httpClient.CallTool(ctx, "todo_delete", params.Arguments)
 	if err != nil {
-		return nil, fmt.Errorf("todo_delete failed: %w", err)
+		errorData := b.handleError(err)
+		return &mcp.CallToolResultFor[handlers.DeleteResult]{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: string(errorData)},
+			},
+		}, nil
 	}
 
 	return &mcp.CallToolResultFor[handlers.DeleteResult]{
@@ -151,7 +233,12 @@ func (b *MCPBridge) Search(ctx context.Context, ss *mcp.ServerSession,
 
 	respData, err := b.httpClient.CallTool(ctx, "search", params.Arguments)
 	if err != nil {
-		return nil, fmt.Errorf("search failed: %w", err)
+		errorData := b.handleError(err)
+		return &mcp.CallToolResultFor[handlers.SearchResult]{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: string(errorData)},
+			},
+		}, nil
 	}
 
 	return &mcp.CallToolResultFor[handlers.SearchResult]{
@@ -168,72 +255,15 @@ func (b *MCPBridge) TagList(ctx context.Context, ss *mcp.ServerSession,
 
 	respData, err := b.httpClient.CallTool(ctx, "tag_list", params.Arguments)
 	if err != nil {
-		return nil, fmt.Errorf("tag_list failed: %w", err)
+		errorData := b.handleError(err)
+		return &mcp.CallToolResultFor[handlers.TagListResult]{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: string(errorData)},
+			},
+		}, nil
 	}
 
 	return &mcp.CallToolResultFor[handlers.TagListResult]{
-		Content: []mcp.Content{
-			&mcp.TextContent{Text: string(respData)},
-		},
-	}, nil
-}
-
-// Authentication operations
-
-func (b *MCPBridge) DeviceAuthStart(ctx context.Context, ss *mcp.ServerSession,
-	params *mcp.CallToolParamsFor[handlers.DeviceAuthStartArgs]) (*mcp.CallToolResultFor[handlers.DeviceAuthStartResult], error) {
-
-	respData, err := b.httpClient.CallTool(ctx, "device_auth_start", params.Arguments)
-	if err != nil {
-		return nil, fmt.Errorf("device_auth_start failed: %w", err)
-	}
-
-	return &mcp.CallToolResultFor[handlers.DeviceAuthStartResult]{
-		Content: []mcp.Content{
-			&mcp.TextContent{Text: string(respData)},
-		},
-	}, nil
-}
-
-func (b *MCPBridge) DeviceAuthPoll(ctx context.Context, ss *mcp.ServerSession,
-	params *mcp.CallToolParamsFor[handlers.DeviceAuthPollArgs]) (*mcp.CallToolResultFor[handlers.DeviceAuthPollResult], error) {
-
-	respData, err := b.httpClient.CallTool(ctx, "device_auth_poll", params.Arguments)
-	if err != nil {
-		return nil, fmt.Errorf("device_auth_poll failed: %w", err)
-	}
-
-	return &mcp.CallToolResultFor[handlers.DeviceAuthPollResult]{
-		Content: []mcp.Content{
-			&mcp.TextContent{Text: string(respData)},
-		},
-	}, nil
-}
-
-func (b *MCPBridge) GetUserInfo(ctx context.Context, ss *mcp.ServerSession,
-	params *mcp.CallToolParamsFor[handlers.UserInfoArgs]) (*mcp.CallToolResultFor[handlers.UserInfoResult], error) {
-
-	respData, err := b.httpClient.CallTool(ctx, "user_info", params.Arguments)
-	if err != nil {
-		return nil, fmt.Errorf("user_info failed: %w", err)
-	}
-
-	return &mcp.CallToolResultFor[handlers.UserInfoResult]{
-		Content: []mcp.Content{
-			&mcp.TextContent{Text: string(respData)},
-		},
-	}, nil
-}
-
-func (b *MCPBridge) DeleteAccount(ctx context.Context, ss *mcp.ServerSession,
-	params *mcp.CallToolParamsFor[handlers.AccountDeleteArgs]) (*mcp.CallToolResultFor[handlers.AccountDeleteResult], error) {
-
-	respData, err := b.httpClient.CallTool(ctx, "delete_account", params.Arguments)
-	if err != nil {
-		return nil, fmt.Errorf("delete_account failed: %w", err)
-	}
-
-	return &mcp.CallToolResultFor[handlers.AccountDeleteResult]{
 		Content: []mcp.Content{
 			&mcp.TextContent{Text: string(respData)},
 		},

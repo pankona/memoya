@@ -164,13 +164,37 @@ go test -v ./...            # 詳細表示付き全テスト
 ### 環境設定
 
 #### 必要な環境変数
+
+**開発環境:**
 ```bash
 # Firestore設定
 export GOOGLE_APPLICATION_CREDENTIALS="path/to/service-account.json"
-
-# プロジェクト設定  
 export PROJECT_ID="your-firebase-project-id"
+
+# OAuth設定（開発用）
+export OAUTH_CLIENT_ID="your-google-oauth-client-id.apps.googleusercontent.com"
+export OAUTH_CLIENT_SECRET="GOCSPX-your-oauth-client-secret"
 ```
+
+**本番環境:**
+```bash
+# Firestore設定
+export PROJECT_ID="your-firebase-project-id"
+
+# OAuth設定（本番用 - Secret Managerを使用）
+# - oauth-client-id: Google Cloud Secret Manager
+# - oauth-client-secret: Google Cloud Secret Manager
+```
+
+#### セキュリティ要件
+
+**重要:** OAuth認証情報は絶対にハードコーディングしないでください。
+
+1. **開発環境**: 環境変数で設定
+2. **本番環境**: Google Cloud Secret Managerを使用
+3. **公開リポジトリ**: OAuth認証情報をコミットしない
+
+OAuth設定が不適切な場合、サーバーは起動を拒否します。
 
 #### Firebase/Firestore設定
 1. Firebase Console でプロジェクト作成

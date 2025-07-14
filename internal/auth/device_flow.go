@@ -40,11 +40,11 @@ func NewDeviceFlowService(storage storage.Storage, clientID, clientSecret string
 
 // DeviceAuthResponse represents the response from Google's device auth endpoint
 type DeviceAuthResponse struct {
-	DeviceCode      string `json:"device_code"`
-	UserCode        string `json:"user_code"`
-	VerificationURI string `json:"verification_uri"`
-	ExpiresIn       int    `json:"expires_in"`
-	Interval        int    `json:"interval"`
+	DeviceCode        string `json:"device_code"`
+	UserCode          string `json:"user_code"`
+	VerificationURL   string `json:"verification_url"`
+	ExpiresIn         int    `json:"expires_in"`
+	Interval          int    `json:"interval"`
 }
 
 // StartDeviceFlow initiates the OAuth device flow
@@ -80,7 +80,7 @@ func (s *DeviceFlowService) StartDeviceFlow(ctx context.Context) (*models.Device
 	session := &models.DeviceAuthSession{
 		DeviceCode:      authResp.DeviceCode,
 		UserCode:        authResp.UserCode,
-		VerificationURI: authResp.VerificationURI,
+		VerificationURI: authResp.VerificationURL,
 		ExpiresAt:       time.Now().Add(time.Duration(authResp.ExpiresIn) * time.Second),
 		Status:          models.DeviceAuthStatusPending,
 		CreatedAt:       time.Now(),

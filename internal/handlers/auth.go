@@ -57,12 +57,14 @@ func (h *AuthHandler) Start(ctx context.Context, ss *mcp.ServerSession, params *
 
 	// Parse server response
 	var serverResp struct {
-		Success         bool   `json:"success"`
-		DeviceCode      string `json:"device_code"`
-		UserCode        string `json:"user_code"`
-		VerificationURL string `json:"verification_url"`
-		ExpiresIn       int    `json:"expires_in"`
-		Message         string `json:"message"`
+		Success bool   `json:"success"`
+		Data    struct {
+			DeviceCode      string `json:"device_code"`
+			UserCode        string `json:"user_code"`
+			VerificationURI string `json:"verification_uri"`
+			ExpiresIn       int    `json:"expires_in"`
+		} `json:"data"`
+		Message string `json:"message"`
 	}
 
 	if err := json.Unmarshal(respData, &serverResp); err != nil {
@@ -100,9 +102,9 @@ func (h *AuthHandler) Start(ctx context.Context, ss *mcp.ServerSession, params *
 	}
 
 	config.PendingAuth = &PendingAuth{
-		DeviceCode: serverResp.DeviceCode,
+		DeviceCode: serverResp.Data.DeviceCode,
 		StartedAt:  time.Now(),
-		ExpiresAt:  time.Now().Add(time.Duration(serverResp.ExpiresIn) * time.Second),
+		ExpiresAt:  time.Now().Add(time.Duration(serverResp.Data.ExpiresIn) * time.Second),
 	}
 
 	if err := h.configManager.Save(config); err != nil {
@@ -112,11 +114,11 @@ func (h *AuthHandler) Start(ctx context.Context, ss *mcp.ServerSession, params *
 
 	result := AuthStartResult{
 		Success:         true,
-		DeviceCode:      serverResp.DeviceCode,
-		UserCode:        serverResp.UserCode,
-		VerificationURL: serverResp.VerificationURL,
-		ExpiresIn:       serverResp.ExpiresIn,
-		Message:         fmt.Sprintf("Please visit %s and enter code: %s", serverResp.VerificationURL, serverResp.UserCode),
+		DeviceCode:      serverResp.Data.DeviceCode,
+		UserCode:        serverResp.Data.UserCode,
+		VerificationURL: serverResp.Data.VerificationURI,
+		ExpiresIn:       serverResp.Data.ExpiresIn,
+		Message:         fmt.Sprintf("Please visit %s and enter code: %s", serverResp.Data.VerificationURI, serverResp.Data.UserCode),
 	}
 
 	jsonBytes, _ := json.Marshal(result)

@@ -511,7 +511,12 @@ func (s *Server) StartDeviceAuth(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
-		"data":    result,
+		"data": map[string]interface{}{
+			"device_code":      result.DeviceCode,
+			"user_code":        result.UserCode,
+			"verification_uri": result.VerificationURI,
+			"expires_in":       int(result.ExpiresAt.Sub(result.CreatedAt).Seconds()),
+		},
 		"message": "Device flow started successfully",
 	})
 }

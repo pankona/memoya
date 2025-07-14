@@ -1,0 +1,34 @@
+# .gcloudignore for memoya project
+.gcloudignore
+.git/
+.gitignore
+
+# Compiled binaries (but keep source directories)
+/memoya
+/memoya-server
+*.exe
+
+# Test files  
+*_test.go
+coverage.out
+coverage.html
+
+# Local environment files
+.env
+.env.local
+
+# Development tools
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Generated files that will be regenerated in build
+internal/generated/
+
+# Documentation (except essential ones)
+*.md
+!README.md
+!CLAUDE.md

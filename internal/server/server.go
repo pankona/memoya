@@ -19,11 +19,11 @@ import (
 
 // Server implements the generated ServerInterface
 type Server struct {
+	storage           storage.Storage
 	memoHandler       *handlers.MemoHandler
 	todoHandler       *handlers.TodoHandler
 	searchHandler     *handlers.SearchHandler
 	tagHandler        *handlers.TagHandler
-	authHandler       *handlers.AuthHandler
 	deviceFlowService *auth.DeviceFlowService
 }
 
@@ -45,11 +45,11 @@ func NewServer(ctx context.Context, storage storage.Storage) *Server {
 	deviceFlowService := auth.NewDeviceFlowService(storage, credentials.ClientID, credentials.ClientSecret)
 
 	return &Server{
+		storage:           storage,
 		memoHandler:       handlers.NewMemoHandlerWithStorage(storage),
 		todoHandler:       handlers.NewTodoHandlerWithStorage(storage),
 		searchHandler:     handlers.NewSearchHandler(storage),
 		tagHandler:        handlers.NewTagHandler(storage),
-		authHandler:       nil, // Auth handled directly via DeviceFlowService
 		deviceFlowService: deviceFlowService,
 	}
 }
@@ -57,11 +57,11 @@ func NewServer(ctx context.Context, storage storage.Storage) *Server {
 // NewServerWithAuth creates a new server instance with provided auth service
 func NewServerWithAuth(ctx context.Context, storage storage.Storage, deviceFlowService *auth.DeviceFlowService) *Server {
 	return &Server{
+		storage:           storage,
 		memoHandler:       handlers.NewMemoHandlerWithStorage(storage),
 		todoHandler:       handlers.NewTodoHandlerWithStorage(storage),
 		searchHandler:     handlers.NewSearchHandler(storage),
 		tagHandler:        handlers.NewTagHandler(storage),
-		authHandler:       nil, // Will add auth handler methods directly to server
 		deviceFlowService: deviceFlowService,
 	}
 }
@@ -493,47 +493,7 @@ func getBoolValue(ptr *bool) bool {
 	return *ptr
 }
 
-// writeAuthSuccessResponse writes the MCP auth handler result as JSON
-func writeAuthSuccessResponse(w http.ResponseWriter, result interface{}) error {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-
-	// Extract JSON from TextContent using type switch
-	switch r := result.(type) {
-	case *mcp.CallToolResultFor[handlers.DeviceAuthStartResult]:
-		if len(r.Content) > 0 {
-			if textContent, ok := r.Content[0].(*mcp.TextContent); ok {
-				w.Write([]byte(textContent.Text))
-				return nil
-			}
-		}
-	case *mcp.CallToolResultFor[handlers.DeviceAuthPollResult]:
-		if len(r.Content) > 0 {
-			if textContent, ok := r.Content[0].(*mcp.TextContent); ok {
-				w.Write([]byte(textContent.Text))
-				return nil
-			}
-		}
-	case *mcp.CallToolResultFor[handlers.UserInfoResult]:
-		if len(r.Content) > 0 {
-			if textContent, ok := r.Content[0].(*mcp.TextContent); ok {
-				w.Write([]byte(textContent.Text))
-				return nil
-			}
-		}
-	case *mcp.CallToolResultFor[handlers.AccountDeleteResult]:
-		if len(r.Content) > 0 {
-			if textContent, ok := r.Content[0].(*mcp.TextContent); ok {
-				w.Write([]byte(textContent.Text))
-				return nil
-			}
-		}
-	}
-
-	return fmt.Errorf("invalid auth response format")
-}
-
-// Authentication endpoints
+// Authentication endpoints - using deviceFlowService directly
 func (s *Server) StartDeviceAuth(w http.ResponseWriter, r *http.Request) {
 	var req server.DeviceAuthStartRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -541,17 +501,19 @@ func (s *Server) StartDeviceAuth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	args := handlers.DeviceAuthStartArgs{}
-	params := &mcp.CallToolParamsFor[handlers.DeviceAuthStartArgs]{Arguments: args}
-	result, err := s.authHandler.StartDeviceAuth(r.Context(), nil, params)
+	result, err := s.deviceFlowService.StartDeviceFlow(r.Context())
 	if err != nil {
 		writeErrorResponse(w, http.StatusInternalServerError, err.Error(), "INTERNAL_ERROR")
 		return
 	}
 
-	if err := writeAuthSuccessResponse(w, result); err != nil {
-		writeErrorResponse(w, http.StatusInternalServerError, "Failed to encode response", "INTERNAL_ERROR")
-	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"data":    result,
+		"message": "Device flow started successfully",
+	})
 }
 
 func (s *Server) PollDeviceAuth(w http.ResponseWriter, r *http.Request) {
@@ -561,33 +523,59 @@ func (s *Server) PollDeviceAuth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	args := handlers.DeviceAuthPollArgs{
-		DeviceCode: req.DeviceCode,
-	}
-	params := &mcp.CallToolParamsFor[handlers.DeviceAuthPollArgs]{Arguments: args}
-	result, err := s.authHandler.PollDeviceAuth(r.Context(), nil, params)
+	user, token, err := s.deviceFlowService.PollToken(r.Context(), req.DeviceCode)
 	if err != nil {
 		writeErrorResponse(w, http.StatusInternalServerError, err.Error(), "INTERNAL_ERROR")
 		return
 	}
 
-	if err := writeAuthSuccessResponse(w, result); err != nil {
-		writeErrorResponse(w, http.StatusInternalServerError, "Failed to encode response", "INTERNAL_ERROR")
-	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"data": map[string]interface{}{
+			"user":        user,
+			"access_token": token,
+		},
+		"message": "Poll completed successfully",
+	})
 }
 
 func (s *Server) GetUserInfo(w http.ResponseWriter, r *http.Request) {
-	args := handlers.UserInfoArgs{}
-	params := &mcp.CallToolParamsFor[handlers.UserInfoArgs]{Arguments: args}
-	result, err := s.authHandler.GetUserInfo(r.Context(), nil, params)
+	// Get JWT token from Authorization header
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		writeErrorResponse(w, http.StatusUnauthorized, "Authorization header required", "UNAUTHORIZED")
+		return
+	}
+
+	// Extract token from "Bearer <token>" format
+	jwtToken := authHeader
+	if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
+		jwtToken = authHeader[7:]
+	}
+
+	// Verify JWT and get user ID
+	userID, err := auth.ValidateJWT(jwtToken)
+	if err != nil {
+		writeErrorResponse(w, http.StatusUnauthorized, "Invalid token", "UNAUTHORIZED")
+		return
+	}
+
+	// Get user from storage
+	user, err := s.storage.GetUser(r.Context(), userID)
 	if err != nil {
 		writeErrorResponse(w, http.StatusInternalServerError, err.Error(), "INTERNAL_ERROR")
 		return
 	}
 
-	if err := writeAuthSuccessResponse(w, result); err != nil {
-		writeErrorResponse(w, http.StatusInternalServerError, "Failed to encode response", "INTERNAL_ERROR")
-	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"data":    user,
+		"message": "User info retrieved successfully",
+	})
 }
 
 func (s *Server) DeleteAccount(w http.ResponseWriter, r *http.Request) {
@@ -597,17 +585,41 @@ func (s *Server) DeleteAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	args := handlers.AccountDeleteArgs{
-		Confirm: getBoolValue(req.Confirm),
+	if !getBoolValue(req.Confirm) {
+		writeErrorResponse(w, http.StatusBadRequest, "Account deletion requires confirmation", "CONFIRMATION_REQUIRED")
+		return
 	}
-	params := &mcp.CallToolParamsFor[handlers.AccountDeleteArgs]{Arguments: args}
-	result, err := s.authHandler.DeleteAccount(r.Context(), nil, params)
+
+	// Get JWT token from Authorization header
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		writeErrorResponse(w, http.StatusUnauthorized, "Authorization header required", "UNAUTHORIZED")
+		return
+	}
+
+	jwtToken := authHeader
+	if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
+		jwtToken = authHeader[7:]
+	}
+
+	// Verify JWT and get user ID
+	userID, err := auth.ValidateJWT(jwtToken)
+	if err != nil {
+		writeErrorResponse(w, http.StatusUnauthorized, "Invalid token", "UNAUTHORIZED")
+		return
+	}
+
+	// Delete user account
+	err = s.storage.DeleteUser(r.Context(), userID)
 	if err != nil {
 		writeErrorResponse(w, http.StatusInternalServerError, err.Error(), "INTERNAL_ERROR")
 		return
 	}
 
-	if err := writeAuthSuccessResponse(w, result); err != nil {
-		writeErrorResponse(w, http.StatusInternalServerError, "Failed to encode response", "INTERNAL_ERROR")
-	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "Account deleted successfully",
+	})
 }

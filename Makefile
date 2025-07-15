@@ -1,4 +1,4 @@
-.PHONY: build install lint test fmt generate clean build-server
+.PHONY: build install lint test fmt generate clean build-server deploy
 
 # Build MCP client
 build:
@@ -48,3 +48,15 @@ run-server:
 # Run MCP client locally
 run-client:
 	go run ./cmd/memoya
+
+# Deploy to Cloud Run
+deploy:
+	gcloud run deploy memoya-server \
+		--source . \
+		--region asia-northeast1 \
+		--project pankona \
+		--allow-unauthenticated \
+		--memory 1Gi \
+		--port 8080 \
+		--max-instances 1 \
+		--set-env-vars PROJECT_ID=pankona

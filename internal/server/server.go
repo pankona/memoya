@@ -66,6 +66,28 @@ func NewServerWithAuth(ctx context.Context, storage storage.Storage, deviceFlowS
 	}
 }
 
+// verifyAuth verifies the JWT token from Authorization header and returns user ID
+func (s *Server) verifyAuth(r *http.Request) (string, error) {
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		return "", fmt.Errorf("authentication required")
+	}
+
+	// Extract token from "Bearer <token>" format
+	token := authHeader
+	if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
+		token = authHeader[7:]
+	}
+
+	// Verify JWT token
+	userID, err := auth.ValidateJWT(token)
+	if err != nil {
+		return "", fmt.Errorf("authentication required")
+	}
+
+	return userID, nil
+}
+
 // writeErrorResponse writes an error response
 func writeErrorResponse(w http.ResponseWriter, statusCode int, message, code string) {
 	w.Header().Set("Content-Type", "application/json")
@@ -163,6 +185,13 @@ func (s *Server) HealthCheck(w http.ResponseWriter, r *http.Request) {
 
 // CreateMemo implements POST /mcp/memo_create
 func (s *Server) CreateMemo(w http.ResponseWriter, r *http.Request) {
+	// Verify authentication
+	userID, err := s.verifyAuth(r)
+	if err != nil {
+		writeErrorResponse(w, http.StatusUnauthorized, err.Error(), "UNAUTHORIZED")
+		return
+	}
+
 	var req server.MemoCreateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeErrorResponse(w, http.StatusBadRequest, "Invalid JSON format", "BAD_REQUEST")
@@ -178,7 +207,10 @@ func (s *Server) CreateMemo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	params := &mcp.CallToolParamsFor[handlers.MemoCreateArgs]{Arguments: args}
-	result, err := s.memoHandler.Create(r.Context(), nil, params)
+	
+	// Set user context for the handler
+	ctx := context.WithValue(r.Context(), "userID", userID)
+	result, err := s.memoHandler.Create(ctx, nil, params)
 	if err != nil {
 		writeErrorResponse(w, http.StatusInternalServerError, err.Error(), "INTERNAL_ERROR")
 		return
@@ -191,6 +223,13 @@ func (s *Server) CreateMemo(w http.ResponseWriter, r *http.Request) {
 
 // ListMemos implements POST /mcp/memo_list
 func (s *Server) ListMemos(w http.ResponseWriter, r *http.Request) {
+	// Verify authentication
+	userID, err := s.verifyAuth(r)
+	if err != nil {
+		writeErrorResponse(w, http.StatusUnauthorized, err.Error(), "UNAUTHORIZED")
+		return
+	}
+
 	var req server.MemoListRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeErrorResponse(w, http.StatusBadRequest, "Invalid JSON format", "BAD_REQUEST")
@@ -202,7 +241,10 @@ func (s *Server) ListMemos(w http.ResponseWriter, r *http.Request) {
 	}
 
 	params := &mcp.CallToolParamsFor[handlers.MemoListArgs]{Arguments: args}
-	result, err := s.memoHandler.List(r.Context(), nil, params)
+	
+	// Set user context for the handler
+	ctx := context.WithValue(r.Context(), "userID", userID)
+	result, err := s.memoHandler.List(ctx, nil, params)
 	if err != nil {
 		writeErrorResponse(w, http.StatusInternalServerError, err.Error(), "INTERNAL_ERROR")
 		return

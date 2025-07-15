@@ -58,7 +58,7 @@ func (h *AuthHandler) Start(ctx context.Context, ss *mcp.ServerSession, params *
 
 	// Parse server response
 	var serverResp struct {
-		Success bool   `json:"success"`
+		Success bool `json:"success"`
 		Data    struct {
 			DeviceCode      string `json:"device_code"`
 			UserCode        string `json:"user_code"`

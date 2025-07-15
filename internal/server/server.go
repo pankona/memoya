@@ -539,7 +539,7 @@ func (s *Server) PollDeviceAuth(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
 		"data": map[string]interface{}{
-			"user":        user,
+			"user":         user,
 			"access_token": token,
 		},
 		"message": "Poll completed successfully",

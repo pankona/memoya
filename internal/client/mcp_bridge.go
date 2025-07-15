@@ -22,6 +22,14 @@ func NewMCPBridge(httpClient *HTTPClient) *MCPBridge {
 	}
 }
 
+// ensureAuth checks and sets the auth token from saved config if not already set
+func (b *MCPBridge) ensureAuth() {
+	// Try to load saved token if not already set
+	if savedToken, err := handlers.GetAuthToken(); err == nil && savedToken != "" {
+		b.httpClient.SetAuthToken(savedToken)
+	}
+}
+
 // handleError converts HTTP errors into structured JSON responses for MCP
 func (b *MCPBridge) handleError(err error) []byte {
 	errorMsg := err.Error()
@@ -65,6 +73,7 @@ func (b *MCPBridge) handleError(err error) []byte {
 
 func (b *MCPBridge) MemoCreate(ctx context.Context, ss *mcp.ServerSession,
 	params *mcp.CallToolParamsFor[handlers.MemoCreateArgs]) (*mcp.CallToolResultFor[handlers.MemoResult], error) {
+	b.ensureAuth()
 
 	respData, err := b.httpClient.CallTool(ctx, "memo_create", params.Arguments)
 	if err != nil {
@@ -86,6 +95,7 @@ func (b *MCPBridge) MemoCreate(ctx context.Context, ss *mcp.ServerSession,
 
 func (b *MCPBridge) MemoList(ctx context.Context, ss *mcp.ServerSession,
 	params *mcp.CallToolParamsFor[handlers.MemoListArgs]) (*mcp.CallToolResultFor[handlers.MemoListResult], error) {
+	b.ensureAuth()
 
 	respData, err := b.httpClient.CallTool(ctx, "memo_list", params.Arguments)
 	if err != nil {
@@ -106,6 +116,7 @@ func (b *MCPBridge) MemoList(ctx context.Context, ss *mcp.ServerSession,
 
 func (b *MCPBridge) MemoUpdate(ctx context.Context, ss *mcp.ServerSession,
 	params *mcp.CallToolParamsFor[handlers.MemoUpdateArgs]) (*mcp.CallToolResultFor[handlers.MemoResult], error) {
+	b.ensureAuth()
 
 	respData, err := b.httpClient.CallTool(ctx, "memo_update", params.Arguments)
 	if err != nil {
@@ -126,6 +137,7 @@ func (b *MCPBridge) MemoUpdate(ctx context.Context, ss *mcp.ServerSession,
 
 func (b *MCPBridge) MemoDelete(ctx context.Context, ss *mcp.ServerSession,
 	params *mcp.CallToolParamsFor[handlers.MemoDeleteArgs]) (*mcp.CallToolResultFor[handlers.MemoDeleteResult], error) {
+	b.ensureAuth()
 
 	respData, err := b.httpClient.CallTool(ctx, "memo_delete", params.Arguments)
 	if err != nil {
@@ -148,6 +160,7 @@ func (b *MCPBridge) MemoDelete(ctx context.Context, ss *mcp.ServerSession,
 
 func (b *MCPBridge) TodoCreate(ctx context.Context, ss *mcp.ServerSession,
 	params *mcp.CallToolParamsFor[handlers.TodoCreateArgs]) (*mcp.CallToolResultFor[handlers.TodoResult], error) {
+	b.ensureAuth()
 
 	respData, err := b.httpClient.CallTool(ctx, "todo_create", params.Arguments)
 	if err != nil {
@@ -168,6 +181,7 @@ func (b *MCPBridge) TodoCreate(ctx context.Context, ss *mcp.ServerSession,
 
 func (b *MCPBridge) TodoList(ctx context.Context, ss *mcp.ServerSession,
 	params *mcp.CallToolParamsFor[handlers.TodoListArgs]) (*mcp.CallToolResultFor[handlers.TodoListResult], error) {
+	b.ensureAuth()
 
 	respData, err := b.httpClient.CallTool(ctx, "todo_list", params.Arguments)
 	if err != nil {
@@ -188,6 +202,7 @@ func (b *MCPBridge) TodoList(ctx context.Context, ss *mcp.ServerSession,
 
 func (b *MCPBridge) TodoUpdate(ctx context.Context, ss *mcp.ServerSession,
 	params *mcp.CallToolParamsFor[handlers.TodoUpdateArgs]) (*mcp.CallToolResultFor[handlers.TodoResult], error) {
+	b.ensureAuth()
 
 	respData, err := b.httpClient.CallTool(ctx, "todo_update", params.Arguments)
 	if err != nil {
@@ -208,6 +223,7 @@ func (b *MCPBridge) TodoUpdate(ctx context.Context, ss *mcp.ServerSession,
 
 func (b *MCPBridge) TodoDelete(ctx context.Context, ss *mcp.ServerSession,
 	params *mcp.CallToolParamsFor[handlers.TodoDeleteArgs]) (*mcp.CallToolResultFor[handlers.DeleteResult], error) {
+	b.ensureAuth()
 
 	respData, err := b.httpClient.CallTool(ctx, "todo_delete", params.Arguments)
 	if err != nil {
@@ -230,6 +246,7 @@ func (b *MCPBridge) TodoDelete(ctx context.Context, ss *mcp.ServerSession,
 
 func (b *MCPBridge) Search(ctx context.Context, ss *mcp.ServerSession,
 	params *mcp.CallToolParamsFor[handlers.SearchArgs]) (*mcp.CallToolResultFor[handlers.SearchResult], error) {
+	b.ensureAuth()
 
 	respData, err := b.httpClient.CallTool(ctx, "search", params.Arguments)
 	if err != nil {
@@ -252,6 +269,7 @@ func (b *MCPBridge) Search(ctx context.Context, ss *mcp.ServerSession,
 
 func (b *MCPBridge) TagList(ctx context.Context, ss *mcp.ServerSession,
 	params *mcp.CallToolParamsFor[handlers.TagListArgs]) (*mcp.CallToolResultFor[handlers.TagListResult], error) {
+	b.ensureAuth()
 
 	respData, err := b.httpClient.CallTool(ctx, "tag_list", params.Arguments)
 	if err != nil {

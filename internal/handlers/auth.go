@@ -157,25 +157,7 @@ func (h *AuthHandler) Status(ctx context.Context, ss *mcp.ServerSession, params 
 		}, nil
 	}
 
-	// Check if we have a valid token
-	if config.AuthToken != "" && config.TokenExpiresAt != nil && config.TokenExpiresAt.After(time.Now()) {
-		result := AuthStatusResult{
-			Success:       true,
-			Authenticated: true,
-			Token:         config.AuthToken,
-			ExpiresAt:     config.TokenExpiresAt.Format(time.RFC3339),
-			Message:       "Authenticated",
-		}
-
-		jsonBytes, _ := json.Marshal(result)
-		return &mcp.CallToolResultFor[AuthStatusResult]{
-			Content: []mcp.Content{
-				&mcp.TextContent{Text: string(jsonBytes)},
-			},
-		}, nil
-	}
-
-	// Check if there's a pending auth
+	// Check if there's a pending auth first (prioritize new authentication)
 	if config.PendingAuth != nil && config.PendingAuth.ExpiresAt.After(time.Now()) {
 		// Poll server for the result
 		pollArgs := struct {
@@ -307,6 +289,24 @@ func (h *AuthHandler) Status(ctx context.Context, ss *mcp.ServerSession, params 
 			Token:         serverResp.Data.AccessToken,
 			ExpiresAt:     expiresAt.Format(time.RFC3339),
 			Message:       "Authentication successful!",
+		}
+
+		jsonBytes, _ := json.Marshal(result)
+		return &mcp.CallToolResultFor[AuthStatusResult]{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: string(jsonBytes)},
+			},
+		}, nil
+	}
+
+	// Check if we have a valid existing token (fallback)
+	if config.AuthToken != "" && config.TokenExpiresAt != nil && config.TokenExpiresAt.After(time.Now()) {
+		result := AuthStatusResult{
+			Success:       true,
+			Authenticated: true,
+			Token:         config.AuthToken,
+			ExpiresAt:     config.TokenExpiresAt.Format(time.RFC3339),
+			Message:       "Authenticated",
 		}
 
 		jsonBytes, _ := json.Marshal(result)

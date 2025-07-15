@@ -66,11 +66,11 @@ func NewServerWithAuth(ctx context.Context, storage storage.Storage, deviceFlowS
 	}
 }
 
-// verifyAuth verifies the JWT token from Authorization header and returns user ID
-func (s *Server) verifyAuth(r *http.Request) (string, error) {
+// verifyAuthAndSetContext verifies JWT token and returns context with user ID
+func (s *Server) verifyAuthAndSetContext(r *http.Request) (context.Context, string, error) {
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
-		return "", fmt.Errorf("authentication required")
+		return nil, "", fmt.Errorf("authentication required")
 	}
 
 	// Extract token from "Bearer <token>" format
@@ -82,10 +82,18 @@ func (s *Server) verifyAuth(r *http.Request) (string, error) {
 	// Verify JWT token
 	userID, err := auth.ValidateJWT(token)
 	if err != nil {
-		return "", fmt.Errorf("authentication required")
+		return nil, "", fmt.Errorf("authentication required")
 	}
 
-	return userID, nil
+	// Set user context for the handler
+	ctx := context.WithValue(r.Context(), auth.UserContextKey("user_id"), userID)
+	return ctx, userID, nil
+}
+
+// verifyAuth verifies the JWT token from Authorization header and returns user ID
+func (s *Server) verifyAuth(r *http.Request) (string, error) {
+	_, userID, err := s.verifyAuthAndSetContext(r)
+	return userID, err
 }
 
 // writeErrorResponse writes an error response
@@ -185,8 +193,8 @@ func (s *Server) HealthCheck(w http.ResponseWriter, r *http.Request) {
 
 // CreateMemo implements POST /mcp/memo_create
 func (s *Server) CreateMemo(w http.ResponseWriter, r *http.Request) {
-	// Verify authentication
-	userID, err := s.verifyAuth(r)
+	// Verify authentication and get context
+	ctx, _, err := s.verifyAuthAndSetContext(r)
 	if err != nil {
 		writeErrorResponse(w, http.StatusUnauthorized, err.Error(), "UNAUTHORIZED")
 		return
@@ -207,9 +215,6 @@ func (s *Server) CreateMemo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	params := &mcp.CallToolParamsFor[handlers.MemoCreateArgs]{Arguments: args}
-	
-	// Set user context for the handler (using same key as auth middleware)
-	ctx := context.WithValue(r.Context(), auth.UserContextKey("user_id"), userID)
 	result, err := s.memoHandler.Create(ctx, nil, params)
 	if err != nil {
 		writeErrorResponse(w, http.StatusInternalServerError, err.Error(), "INTERNAL_ERROR")
@@ -223,8 +228,8 @@ func (s *Server) CreateMemo(w http.ResponseWriter, r *http.Request) {
 
 // ListMemos implements POST /mcp/memo_list
 func (s *Server) ListMemos(w http.ResponseWriter, r *http.Request) {
-	// Verify authentication
-	userID, err := s.verifyAuth(r)
+	// Verify authentication and get context
+	ctx, _, err := s.verifyAuthAndSetContext(r)
 	if err != nil {
 		writeErrorResponse(w, http.StatusUnauthorized, err.Error(), "UNAUTHORIZED")
 		return
@@ -241,9 +246,6 @@ func (s *Server) ListMemos(w http.ResponseWriter, r *http.Request) {
 	}
 
 	params := &mcp.CallToolParamsFor[handlers.MemoListArgs]{Arguments: args}
-	
-	// Set user context for the handler (using same key as auth middleware)
-	ctx := context.WithValue(r.Context(), auth.UserContextKey("user_id"), userID)
 	result, err := s.memoHandler.List(ctx, nil, params)
 	if err != nil {
 		writeErrorResponse(w, http.StatusInternalServerError, err.Error(), "INTERNAL_ERROR")
@@ -257,6 +259,13 @@ func (s *Server) ListMemos(w http.ResponseWriter, r *http.Request) {
 
 // UpdateMemo implements POST /mcp/memo_update
 func (s *Server) UpdateMemo(w http.ResponseWriter, r *http.Request) {
+	// Verify authentication and get context
+	ctx, _, err := s.verifyAuthAndSetContext(r)
+	if err != nil {
+		writeErrorResponse(w, http.StatusUnauthorized, err.Error(), "UNAUTHORIZED")
+		return
+	}
+
 	var req server.MemoUpdateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeErrorResponse(w, http.StatusBadRequest, "Invalid JSON format", "BAD_REQUEST")
@@ -272,7 +281,7 @@ func (s *Server) UpdateMemo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	params := &mcp.CallToolParamsFor[handlers.MemoUpdateArgs]{Arguments: args}
-	result, err := s.memoHandler.Update(r.Context(), nil, params)
+	result, err := s.memoHandler.Update(ctx, nil, params)
 	if err != nil {
 		writeErrorResponse(w, http.StatusInternalServerError, err.Error(), "INTERNAL_ERROR")
 		return
@@ -285,6 +294,13 @@ func (s *Server) UpdateMemo(w http.ResponseWriter, r *http.Request) {
 
 // DeleteMemo implements POST /mcp/memo_delete
 func (s *Server) DeleteMemo(w http.ResponseWriter, r *http.Request) {
+	// Verify authentication and get context
+	ctx, _, err := s.verifyAuthAndSetContext(r)
+	if err != nil {
+		writeErrorResponse(w, http.StatusUnauthorized, err.Error(), "UNAUTHORIZED")
+		return
+	}
+
 	var req server.MemoDeleteRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeErrorResponse(w, http.StatusBadRequest, "Invalid JSON format", "BAD_REQUEST")
@@ -296,7 +312,7 @@ func (s *Server) DeleteMemo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	params := &mcp.CallToolParamsFor[handlers.MemoDeleteArgs]{Arguments: args}
-	result, err := s.memoHandler.Delete(r.Context(), nil, params)
+	result, err := s.memoHandler.Delete(ctx, nil, params)
 	if err != nil {
 		writeErrorResponse(w, http.StatusInternalServerError, err.Error(), "INTERNAL_ERROR")
 		return
@@ -309,6 +325,13 @@ func (s *Server) DeleteMemo(w http.ResponseWriter, r *http.Request) {
 
 // CreateTodo implements POST /mcp/todo_create
 func (s *Server) CreateTodo(w http.ResponseWriter, r *http.Request) {
+	// Verify authentication and get context
+	ctx, _, err := s.verifyAuthAndSetContext(r)
+	if err != nil {
+		writeErrorResponse(w, http.StatusUnauthorized, err.Error(), "UNAUTHORIZED")
+		return
+	}
+
 	var req server.TodoCreateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeErrorResponse(w, http.StatusBadRequest, "Invalid JSON format", "BAD_REQUEST")
@@ -325,7 +348,7 @@ func (s *Server) CreateTodo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	params := &mcp.CallToolParamsFor[handlers.TodoCreateArgs]{Arguments: args}
-	result, err := s.todoHandler.Create(r.Context(), nil, params)
+	result, err := s.todoHandler.Create(ctx, nil, params)
 	if err != nil {
 		writeErrorResponse(w, http.StatusInternalServerError, err.Error(), "INTERNAL_ERROR")
 		return
@@ -338,6 +361,13 @@ func (s *Server) CreateTodo(w http.ResponseWriter, r *http.Request) {
 
 // ListTodos implements POST /mcp/todo_list
 func (s *Server) ListTodos(w http.ResponseWriter, r *http.Request) {
+	// Verify authentication and get context
+	ctx, _, err := s.verifyAuthAndSetContext(r)
+	if err != nil {
+		writeErrorResponse(w, http.StatusUnauthorized, err.Error(), "UNAUTHORIZED")
+		return
+	}
+
 	var req server.TodoListRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeErrorResponse(w, http.StatusBadRequest, "Invalid JSON format", "BAD_REQUEST")
@@ -351,7 +381,7 @@ func (s *Server) ListTodos(w http.ResponseWriter, r *http.Request) {
 	}
 
 	params := &mcp.CallToolParamsFor[handlers.TodoListArgs]{Arguments: args}
-	result, err := s.todoHandler.List(r.Context(), nil, params)
+	result, err := s.todoHandler.List(ctx, nil, params)
 	if err != nil {
 		writeErrorResponse(w, http.StatusInternalServerError, err.Error(), "INTERNAL_ERROR")
 		return
@@ -364,6 +394,13 @@ func (s *Server) ListTodos(w http.ResponseWriter, r *http.Request) {
 
 // UpdateTodo implements POST /mcp/todo_update
 func (s *Server) UpdateTodo(w http.ResponseWriter, r *http.Request) {
+	// Verify authentication and get context
+	ctx, _, err := s.verifyAuthAndSetContext(r)
+	if err != nil {
+		writeErrorResponse(w, http.StatusUnauthorized, err.Error(), "UNAUTHORIZED")
+		return
+	}
+
 	var req server.TodoUpdateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeErrorResponse(w, http.StatusBadRequest, "Invalid JSON format", "BAD_REQUEST")
@@ -380,7 +417,7 @@ func (s *Server) UpdateTodo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	params := &mcp.CallToolParamsFor[handlers.TodoUpdateArgs]{Arguments: args}
-	result, err := s.todoHandler.Update(r.Context(), nil, params)
+	result, err := s.todoHandler.Update(ctx, nil, params)
 	if err != nil {
 		writeErrorResponse(w, http.StatusInternalServerError, err.Error(), "INTERNAL_ERROR")
 		return
@@ -393,6 +430,13 @@ func (s *Server) UpdateTodo(w http.ResponseWriter, r *http.Request) {
 
 // DeleteTodo implements POST /mcp/todo_delete
 func (s *Server) DeleteTodo(w http.ResponseWriter, r *http.Request) {
+	// Verify authentication and get context
+	ctx, _, err := s.verifyAuthAndSetContext(r)
+	if err != nil {
+		writeErrorResponse(w, http.StatusUnauthorized, err.Error(), "UNAUTHORIZED")
+		return
+	}
+
 	var req server.TodoDeleteRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeErrorResponse(w, http.StatusBadRequest, "Invalid JSON format", "BAD_REQUEST")
@@ -404,7 +448,7 @@ func (s *Server) DeleteTodo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	params := &mcp.CallToolParamsFor[handlers.TodoDeleteArgs]{Arguments: args}
-	result, err := s.todoHandler.Delete(r.Context(), nil, params)
+	result, err := s.todoHandler.Delete(ctx, nil, params)
 	if err != nil {
 		writeErrorResponse(w, http.StatusInternalServerError, err.Error(), "INTERNAL_ERROR")
 		return
@@ -417,6 +461,13 @@ func (s *Server) DeleteTodo(w http.ResponseWriter, r *http.Request) {
 
 // Search implements POST /mcp/search
 func (s *Server) Search(w http.ResponseWriter, r *http.Request) {
+	// Verify authentication and get context
+	ctx, _, err := s.verifyAuthAndSetContext(r)
+	if err != nil {
+		writeErrorResponse(w, http.StatusUnauthorized, err.Error(), "UNAUTHORIZED")
+		return
+	}
+
 	var req server.SearchRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeErrorResponse(w, http.StatusBadRequest, "Invalid JSON format", "BAD_REQUEST")
@@ -430,7 +481,7 @@ func (s *Server) Search(w http.ResponseWriter, r *http.Request) {
 	}
 
 	params := &mcp.CallToolParamsFor[handlers.SearchArgs]{Arguments: args}
-	result, err := s.searchHandler.Search(r.Context(), nil, params)
+	result, err := s.searchHandler.Search(ctx, nil, params)
 	if err != nil {
 		writeErrorResponse(w, http.StatusInternalServerError, err.Error(), "INTERNAL_ERROR")
 		return
@@ -443,6 +494,13 @@ func (s *Server) Search(w http.ResponseWriter, r *http.Request) {
 
 // ListTags implements POST /mcp/tag_list
 func (s *Server) ListTags(w http.ResponseWriter, r *http.Request) {
+	// Verify authentication and get context
+	ctx, _, err := s.verifyAuthAndSetContext(r)
+	if err != nil {
+		writeErrorResponse(w, http.StatusUnauthorized, err.Error(), "UNAUTHORIZED")
+		return
+	}
+
 	var req server.TagListRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeErrorResponse(w, http.StatusBadRequest, "Invalid JSON format", "BAD_REQUEST")
@@ -452,7 +510,7 @@ func (s *Server) ListTags(w http.ResponseWriter, r *http.Request) {
 	args := handlers.TagListArgs{}
 
 	params := &mcp.CallToolParamsFor[handlers.TagListArgs]{Arguments: args}
-	result, err := s.tagHandler.List(r.Context(), nil, params)
+	result, err := s.tagHandler.List(ctx, nil, params)
 	if err != nil {
 		writeErrorResponse(w, http.StatusInternalServerError, err.Error(), "INTERNAL_ERROR")
 		return

@@ -208,8 +208,8 @@ func (s *Server) CreateMemo(w http.ResponseWriter, r *http.Request) {
 
 	params := &mcp.CallToolParamsFor[handlers.MemoCreateArgs]{Arguments: args}
 	
-	// Set user context for the handler
-	ctx := context.WithValue(r.Context(), "userID", userID)
+	// Set user context for the handler (using same key as auth middleware)
+	ctx := context.WithValue(r.Context(), auth.UserContextKey("user_id"), userID)
 	result, err := s.memoHandler.Create(ctx, nil, params)
 	if err != nil {
 		writeErrorResponse(w, http.StatusInternalServerError, err.Error(), "INTERNAL_ERROR")
@@ -242,8 +242,8 @@ func (s *Server) ListMemos(w http.ResponseWriter, r *http.Request) {
 
 	params := &mcp.CallToolParamsFor[handlers.MemoListArgs]{Arguments: args}
 	
-	// Set user context for the handler
-	ctx := context.WithValue(r.Context(), "userID", userID)
+	// Set user context for the handler (using same key as auth middleware)
+	ctx := context.WithValue(r.Context(), auth.UserContextKey("user_id"), userID)
 	result, err := s.memoHandler.List(ctx, nil, params)
 	if err != nil {
 		writeErrorResponse(w, http.StatusInternalServerError, err.Error(), "INTERNAL_ERROR")

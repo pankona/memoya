@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -201,11 +202,15 @@ func (h *AuthHandler) Status(ctx context.Context, ss *mcp.ServerSession, params 
 
 		// Parse server response
 		var serverResp struct {
-			Success       bool   `json:"success"`
-			Authenticated bool   `json:"authenticated"`
-			Token         string `json:"token,omitempty"`
-			Message       string `json:"message"`
-			Pending       bool   `json:"pending,omitempty"`
+			Success bool `json:"success"`
+			Data    *struct {
+				AccessToken string `json:"access_token"`
+				User        struct {
+					ID       string `json:"id"`
+					GoogleID string `json:"google_id"`
+				} `json:"user"`
+			} `json:"data,omitempty"`
+			Message string `json:"message"`
 		}
 
 		if err := json.Unmarshal(respData, &serverResp); err != nil {
@@ -223,22 +228,24 @@ func (h *AuthHandler) Status(ctx context.Context, ss *mcp.ServerSession, params 
 			}, nil
 		}
 
-		if serverResp.Pending {
-			result := AuthStatusResult{
-				Success:       true,
-				Authenticated: false,
-				Message:       "Waiting for user authorization. Please complete the authentication in your browser.",
+		// Check if authentication failed
+		if !serverResp.Success {
+			// Check for specific error messages
+			if strings.Contains(serverResp.Message, "authorization pending") {
+				result := AuthStatusResult{
+					Success:       true,
+					Authenticated: false,
+					Message:       "Waiting for user authorization. Please complete the authentication in your browser.",
+				}
+
+				jsonBytes, _ := json.Marshal(result)
+				return &mcp.CallToolResultFor[AuthStatusResult]{
+					Content: []mcp.Content{
+						&mcp.TextContent{Text: string(jsonBytes)},
+					},
+				}, nil
 			}
 
-			jsonBytes, _ := json.Marshal(result)
-			return &mcp.CallToolResultFor[AuthStatusResult]{
-				Content: []mcp.Content{
-					&mcp.TextContent{Text: string(jsonBytes)},
-				},
-			}, nil
-		}
-
-		if !serverResp.Success || !serverResp.Authenticated {
 			// Clear the pending auth
 			config.PendingAuth = nil
 			h.configManager.Save(config)
@@ -257,8 +264,24 @@ func (h *AuthHandler) Status(ctx context.Context, ss *mcp.ServerSession, params 
 			}, nil
 		}
 
+		// Check if we got data with access token
+		if serverResp.Data == nil || serverResp.Data.AccessToken == "" {
+			result := AuthStatusResult{
+				Success:       false,
+				Authenticated: false,
+				Message:       "Poll completed successfully",
+			}
+
+			jsonBytes, _ := json.Marshal(result)
+			return &mcp.CallToolResultFor[AuthStatusResult]{
+				Content: []mcp.Content{
+					&mcp.TextContent{Text: string(jsonBytes)},
+				},
+			}, nil
+		}
+
 		// Success! Save the token
-		config.AuthToken = serverResp.Token
+		config.AuthToken = serverResp.Data.AccessToken
 		expiresAt := time.Now().Add(24 * time.Hour) // JWT tokens expire in 24 hours
 		config.TokenExpiresAt = &expiresAt
 		config.PendingAuth = nil
@@ -281,7 +304,7 @@ func (h *AuthHandler) Status(ctx context.Context, ss *mcp.ServerSession, params 
 		result := AuthStatusResult{
 			Success:       true,
 			Authenticated: true,
-			Token:         serverResp.Token,
+			Token:         serverResp.Data.AccessToken,
 			ExpiresAt:     expiresAt.Format(time.RFC3339),
 			Message:       "Authentication successful!",
 		}

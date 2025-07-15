@@ -264,7 +264,7 @@ func (h *AuthHandler) Status(ctx context.Context, ss *mcp.ServerSession, params 
 
 		// Success! Save the token
 		config.AuthToken = serverResp.Data.AccessToken
-		expiresAt := time.Now().Add(24 * time.Hour) // JWT tokens expire in 24 hours
+		expiresAt := time.Now().Add(7 * 24 * time.Hour) // JWT tokens expire in 7 days (1 week)
 		config.TokenExpiresAt = &expiresAt
 		config.PendingAuth = nil
 
